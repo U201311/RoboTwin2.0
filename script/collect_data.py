@@ -1,6 +1,12 @@
 import sys
+import os
 
-sys.path.append("./")
+# 确保工作目录是项目根目录
+current_file_path = os.path.abspath(__file__)
+parent_directory = os.path.dirname(current_file_path)
+project_root = os.path.dirname(parent_directory)
+os.chdir(project_root)
+sys.path.append(project_root)
 
 import sapien.core as sapien
 from sapien.render import clear_cache
@@ -11,12 +17,8 @@ import yaml
 import importlib
 import json
 import traceback
-import os
 import time
 from argparse import ArgumentParser
-
-current_file_path = os.path.abspath(__file__)
-parent_directory = os.path.dirname(current_file_path)
 
 
 def class_decorator(task_name):
@@ -36,7 +38,7 @@ def get_embodiment_config(robot_file):
     return embodiment_args
 
 
-def main(task_name=None, task_config=None):
+def main(task_name=None, task_config=None, camera_type=None, episode=0, gpu_id=0):
 
     task = class_decorator(task_name)
     config_path = f"./task_config/{task_config}.yml"
@@ -100,6 +102,9 @@ def main(task_name=None, task_config=None):
     args["embodiment_name"] = embodiment_name
     args['task_config'] = task_config
     args["save_path"] = os.path.join(args["save_path"], str(args["task_name"]), args["task_config"])
+    args["episode_num"] = episode
+    args["camera_type"] = camera_type
+    args["gpu_id"] = gpu_id
     run(task, args)
 
 
@@ -243,8 +248,14 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("task_name", type=str)
     parser.add_argument("task_config", type=str)
+    parser.add_argument("--camera_type", type=str, default="head_camera")
+    parser.add_argument("--episode", type=int, default=0)
+    parser.add_argument("--gpu_id", type=int, default=0)
     parser = parser.parse_args()
     task_name = parser.task_name
     task_config = parser.task_config
+    camera_type = parser.camera_type
+    episode = parser.episode
+    gpu_id = parser.gpu_id
 
-    main(task_name=task_name, task_config=task_config)
+    main(task_name=task_name, task_config=task_config, camera_type=camera_type, episode=episode, gpu_id=gpu_id)
