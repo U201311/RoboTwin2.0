@@ -1,0 +1,6 @@
+FROM data_generation_v2:v2 
+COPY . /workspace/robotwin_generation
+RUN chmod +x /workspace/robotwin_generation/entrypoint.sh
+
+WORKDIR /workspace/robotwin_generation
+ENTRYPOINT ["/workspace/robotwin_generation/entrypoint.sh"]
