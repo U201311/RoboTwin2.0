@@ -17,7 +17,7 @@ LOG_DIR=$(get_json_value "['train']['log_path']")
 
 mkdir -p "$LOG_DIR"
 
-DATE_STR=$(date +"%Y-%m-%d")
+DATE_STR=$(date +"%Y-%m-%d_%H-%M-%S")
 LOG_FILE="${LOG_DIR}/${TASK_NAME}_${CAMERA_TYPE}_${EXPERT_DATA_NUM}_${DATE_STR}.log"
 
 

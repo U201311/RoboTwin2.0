@@ -333,6 +333,7 @@ def parse_args_and_config():
     with open(args.config, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
+    print(f"Loaded config from {config}", "green")
     # Parse overrides
     def parse_override_pairs(pairs):
         override_dict = {}

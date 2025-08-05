@@ -16,11 +16,11 @@
         "camera_type": "D435",
         "log_path": "/workspace/robotwin_generation/logs",
         "checkpoint_path": "/workspace/robotwin_generation/policy/DP3/checkpoints",
-        "input_data_path": "/workspace/robotwin_generation/3D-Diffusion-Policy/data"
+        "input_data_path": "/workspace/robotwin_generation/data"
     },
     "evaluation": {
-        "checkpoint_path": "/workspace/dp3_eval/checkpoints",
-        "output_path": "/workspace/dp3_eval/eval_results",
-        "log_path": "/workspace/dp3_eval/logs"
+        "checkpoint_path": "/workspace/robotwin_generation/policy/DP3/checkpoints",
+        "output_path": "/workspace/robotwin_generation/eval_results",
+        "log_path": "/workspace/robotwin_generation/logs"
     }
 }

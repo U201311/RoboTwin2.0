@@ -3,6 +3,7 @@ data/*
 __pycache__/
 **/checkpoints/
 result/
+**data/
 envs/curobo
 *.zip
 viewer_show.*

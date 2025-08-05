@@ -1,4 +1,5 @@
-FROM dp3_policy:v2
+FROM data_generation_v2:v2 
+
 COPY . /workspace/robotwin_generation
 
 RUN find /workspace/robotwin_generation -name "*.sh" -exec chmod +x {} \;

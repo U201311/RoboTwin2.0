@@ -1,14 +1,18 @@
 # Basic experiment configuration (keep unchanged)
-policy_name: null
-task_name: null
-task_config: null
+policy_name: "policy.DP3.deploy_policy"
+task_name: beat_block_hammer
+task_config: demo_randomized
 ckpt_setting: null
-seed: null
+seed: 5000
 instruction_type: unseen
 
 # Add Parameters You Need
 config_name: robot_dp3
-checkpoint_num: 3000
-dp3_task: demo_task
-expert_data_num: null
+checkpoint_num: 10
+checkpoint_path: "/workspace/robotwin_generation/policy/DP3/checkpoints/beat_block_hammer-demo_randomized-1_5000/10.ckpt"
+expert_data_num: 1
 use_rgb: false
+horizon: 8
+n_obs_steps: 3
+n_action_steps: 6
+ 

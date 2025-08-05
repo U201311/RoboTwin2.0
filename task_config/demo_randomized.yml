@@ -33,4 +33,4 @@ pcd_crop: true
 save_path: ./data
 clear_cache_freq: 5
 collect_data: true
-eval_video_log: true
+eval_video_log: false
