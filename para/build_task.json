@@ -12,10 +12,11 @@
         "model":"3D-Diffusion-Policy",
         "epochs":10,
         "seed":5000,
+        "episode":1,
         "camera_type": "D435",
-        "log_path": "/workspace/3D-Diffusion-Policy/logs",
-        "checkpoint_path": "/workspace/3D-Diffusion-Policy/checkpoints",
-        "input_data_path": "/workspace/3D-Diffusion-Policy/data2/dual_shoes_place_D435_pkl"
+        "log_path": "/workspace/robotwin_generation/logs",
+        "checkpoint_path": "/workspace/robotwin_generation/policy/DP3/checkpoints",
+        "input_data_path": "/workspace/robotwin_generation/3D-Diffusion-Policy/data"
     },
     "evaluation": {
         "checkpoint_path": "/workspace/dp3_eval/checkpoints",

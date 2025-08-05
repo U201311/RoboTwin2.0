@@ -15,6 +15,8 @@ run_dir="data/outputs/${exp_name}_seed${seed}"
 
 # gpu_id=$(bash scripts/find_gpu.sh)
 gpu_id=${7}
+epochs=${8}
+checkpoint_path=${9}
 echo -e "\033[33mgpu id (to use): ${gpu_id}\033[0m"
 
 
@@ -39,6 +41,8 @@ python train_dp3.py --config-name=${config_name}.yaml \
                             hydra.run.dir=${run_dir} \
                             training.debug=$DEBUG \
                             training.seed=${seed} \
+                            training.num_epochs=${epochs} \
+                            training.checkpoint_every=${epochs} \
                             training.device="cuda:0" \
                             exp_name=${exp_name} \
                             logging.mode=${wandb_mode} \
