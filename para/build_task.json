@@ -4,7 +4,7 @@
     "gpu_id": "0",
     "data_generation": {
         "output_path": "/workspace/robotwin_generation/data",
-        "episode": 1,
+        "episode": 7,
         "camera_type": "D435",
         "log_path": "/workspace/robotwin_generation/logs"
     },
