@@ -22,7 +22,7 @@ env_runner:
 
 dataset:
   _target_: diffusion_policy_3d.dataset.robot_dataset.RobotDataset
-  zarr_path: ../../../data/${task.name}.zarr
+  zarr_path: /workspace/embolab/data_dp/${task.name}.zarr
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}

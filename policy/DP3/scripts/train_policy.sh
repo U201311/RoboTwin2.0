@@ -16,7 +16,7 @@ run_dir="data/outputs/${exp_name}_seed${seed}"
 # gpu_id=$(bash scripts/find_gpu.sh)
 gpu_id=${7}
 epochs=${8}
-checkpoint_path=${9}
+checkpoint_path=${9:-"/workspace/embolab"}
 echo -e "\033[33mgpu id (to use): ${gpu_id}\033[0m"
 
 
@@ -48,4 +48,5 @@ python train_dp3.py --config-name=${config_name}.yaml \
                             logging.mode=${wandb_mode} \
                             checkpoint.save_ckpt=${save_ckpt} \
                             expert_data_num=${expert_data_num} \
-                            setting=${setting}
+                            setting=${setting} \
+                            checkpoint_path=${checkpoint_path} \

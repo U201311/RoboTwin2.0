@@ -1,0 +1,12 @@
+- task_name=beat_block_hammer
+- training.debug=False
+- training.seed=0
+- training.num_epochs=50
+- training.checkpoint_every=50
+- training.device=cuda:0
+- exp_name=beat_block_hammer-robot_dp3-train
+- logging.mode=online
+- checkpoint.save_ckpt=True
+- expert_data_num=1
+- setting=demo_randomized
+- checkpoint_path=/workspace/embolab

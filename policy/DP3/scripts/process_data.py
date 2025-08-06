@@ -43,17 +43,24 @@ def main():
         type=int,
         help="Number of episodes to process (e.g., 50)",
     )
+    parser.add_argument(
+        "camera_type",
+        type=str,
+        default="D435",
+        help="Type of camera used for data collection (e.g., D435, RealSense)",
+    )
     args = parser.parse_args()
 
     task_name = args.task_name
     num = args.expert_data_num
     task_config = args.task_config
+    camera_type = args.camera_type
 
-    load_dir = "../../data/" + str(task_name) + "/" + str(task_config)
+    load_dir = "/workspace/embolab/data/" + str(task_name) + "/" + str(task_config) + "/" + str(camera_type)
 
     total_count = 0
 
-    save_dir = f"./data/{task_name}-{task_config}-{num}.zarr"
+    save_dir = f"/workspace/embolab/data_dp/{task_name}-{task_config}-{num}.zarr"
 
     if os.path.exists(save_dir):
         shutil.rmtree(save_dir)

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 get_json_value() {
-    python3 -c "import sys, json; print(json.load(open('/workspace/robotwin_generation/para/build_task.json'))$1)"
+    python3 -c "import sys, json; print(json.load(open('/workspace/embolab/params/build_task.json'))$1)"
 }
 
 TASK_NAME=$(get_json_value "['task_name']")
@@ -17,7 +17,7 @@ LOG_DIR=$(get_json_value "['train']['log_path']")
 
 mkdir -p "$LOG_DIR"
 
-DATE_STR=$(date +"%Y-%m-%d")
+DATE_STR=$(date +"%Y-%m-%d_%H-%M-%S")
 LOG_FILE="${LOG_DIR}/${TASK_NAME}_${CAMERA_TYPE}_${EXPERT_DATA_NUM}_${DATE_STR}.log"
 
 
@@ -41,7 +41,7 @@ source /opt/conda/bin/activate RoboTwin
 
 echo "Starting data transfer for task: ${TASK_NAME} with camera type: ${CAMERA_TYPE} and expert data number: ${EXPERT_DATA_NUM}"
 # 拼凑完整的数据路径
-bash process_data.sh ${TASK_NAME} demo_randomized ${EXPERT_DATA_NUM}
+bash process_data.sh ${TASK_NAME} demo_randomized ${EXPERT_DATA_NUM} ${CAMERA_TYPE}
 #python scripts/pkl2zarr_dp3.py ${TASK_NAME} ${CAMERA_TYPE} ${EXPERT_DATA_NUM} --load_dir ${FULL_DATA_PATH} --save_dir /workspace/3D-Diffusion-Policy/data/${TASK_NAME}_${CAMERA_TYPE}_${EXPERT_DATA_NUM}.zarr
 #python scripts/pkl2zarr_dp3.py dual_shoes_place D435 1 --load_dir /workspace/3D-Diffusion-Policy/data2/dual_shoes_place_D435_pkl --save_dir /workspace/3D-Diffusion-Policy/data/dual_shoes_place_D435_1.zarr
 #python scripts/pkl2zarr_dp3.py blocks_stack_hard D435 1 --load_dir /workspace/3D-Diffusion-Policy/data2/blocks_stack_hard_D435_pkl --save_dir /workspace/3D-Diffusion-Policy/data/blocks_stack_hard_D435_1.zarr

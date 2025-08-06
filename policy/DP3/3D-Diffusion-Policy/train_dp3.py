@@ -58,6 +58,9 @@ class TrainDP3Workspace:
         self._output_dir = output_dir
         self._saving_thread = None
 
+        # 设置检查点保存路径
+        self.checkpoint_path = getattr(cfg, 'checkpoint_path', '/workspace/embolab')
+
         # set seed
         seed = cfg.training.seed
         torch.manual_seed(seed)
@@ -202,7 +205,7 @@ class TrainDP3Workspace:
                     raw_loss, loss_dict = self.model.compute_loss(batch)
                     loss = raw_loss / cfg.training.gradient_accumulate_every
                     loss.backward()
-
+                    print(f"epoch {self.epoch}, step {batch_idx}, loss: ", float(raw_loss.cpu()))
                     t1_2 = time.time()
 
                     # step optimizer
@@ -284,13 +287,15 @@ class TrainDP3Workspace:
             if ((self.epoch + 1) % cfg.training.checkpoint_every) == 0 and cfg.checkpoint.save_ckpt:
 
                 if not cfg.policy.use_pc_color:
-                    if not os.path.exists(f"checkpoints/{self.cfg.task.name}_{cfg.training.seed}"):
-                        os.makedirs(f"checkpoints/{self.cfg.task.name}_{cfg.training.seed}")
-                    save_path = f"checkpoints/{self.cfg.task.name}_{cfg.training.seed}/{self.epoch + 1}.ckpt"
+                    checkpoint_dir = os.path.join(self.checkpoint_path, "checkpoints", f"{self.cfg.task.name}_{cfg.training.seed}")
+                    if not os.path.exists(checkpoint_dir):
+                        os.makedirs(checkpoint_dir)
+                    save_path = os.path.join(checkpoint_dir, f"{self.epoch + 1}.ckpt")
                 else:
-                    if not os.path.exists(f"checkpoints/{self.cfg.task.name}_w_rgb_{cfg.training.seed}"):
-                        os.makedirs(f"checkpoints/{self.cfg.task.name}_w_rgb_{cfg.training.seed}")
-                    save_path = f"checkpoints/{self.cfg.task.name}_w_rgb_{cfg.training.seed}/{self.epoch + 1}.ckpt"
+                    checkpoint_dir = os.path.join(self.checkpoint_path, "checkpoints", f"{self.cfg.task.name}_w_rgb_{cfg.training.seed}")
+                    if not os.path.exists(checkpoint_dir):
+                        os.makedirs(checkpoint_dir)
+                    save_path = os.path.join(checkpoint_dir, f"{self.epoch + 1}.ckpt")
 
                 self.save_checkpoint(save_path)
 
@@ -357,15 +362,21 @@ class TrainDP3Workspace:
     ):
         print("saved in ", path)
         if path is None:
-            path = pathlib.Path(self.output_dir).joinpath("checkpoints", f"{tag}.ckpt")
+            # 使用 self.checkpoint_path 作为基础路径
+            path = pathlib.Path(self.checkpoint_path).joinpath("checkpoints", f"{tag}.ckpt")
         else:
-            path = pathlib.Path(path)
+            # 如果提供了 path，将其作为相对于 self.checkpoint_path 的路径
+            if not os.path.isabs(str(path)):
+                path = pathlib.Path(self.checkpoint_path).joinpath(path)
+            else:
+                path = pathlib.Path(path)
         if exclude_keys is None:
             exclude_keys = tuple(self.exclude_keys)
         if include_keys is None:
             include_keys = tuple(self.include_keys) + ("_output_dir", )
 
-        path.parent.mkdir(parents=False, exist_ok=True)
+        # 确保父目录存在（递归创建）
+        path.parent.mkdir(parents=True, exist_ok=True)
         payload = {"cfg": self.cfg, "state_dicts": dict(), "pickles": dict()}
 
         for key, value in self.__dict__.items():
@@ -391,11 +402,11 @@ class TrainDP3Workspace:
 
     def get_checkpoint_path(self, tag="latest"):
         if tag == "latest":
-            return pathlib.Path(self.output_dir).joinpath("checkpoints", f"{tag}.ckpt")
+            return pathlib.Path(self.checkpoint_path).joinpath("checkpoints", f"{tag}.ckpt")
         elif tag == "best":
             # the checkpoints are saved as format: epoch={}-test_mean_score={}.ckpt
             # find the best checkpoint
-            checkpoint_dir = pathlib.Path(self.output_dir).joinpath("checkpoints")
+            checkpoint_dir = pathlib.Path(self.checkpoint_path).joinpath("checkpoints")
             all_checkpoints = os.listdir(checkpoint_dir)
             best_ckpt = None
             best_score = -1e10
@@ -406,7 +417,7 @@ class TrainDP3Workspace:
                 if score > best_score:
                     best_ckpt = ckpt
                     best_score = score
-            return pathlib.Path(self.output_dir).joinpath("checkpoints", best_ckpt)
+            return pathlib.Path(self.checkpoint_path).joinpath("checkpoints", best_ckpt)
         else:
             raise NotImplementedError(f"tag {tag} not implemented")
 
