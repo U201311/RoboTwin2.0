@@ -38,7 +38,7 @@ def get_embodiment_config(robot_file):
     return embodiment_args
 
 
-def main(task_name=None, task_config=None, camera_type=None, episode=0, gpu_id=0):
+def main(task_name=None, task_config=None, camera_type=None, episode=0, gpu_id=0, save_path=None):
 
     task = class_decorator(task_name)
     config_path = f"./task_config/{task_config}.yml"
@@ -47,7 +47,9 @@ def main(task_name=None, task_config=None, camera_type=None, episode=0, gpu_id=0
         args = yaml.load(f.read(), Loader=yaml.FullLoader)
 
     args['task_name'] = task_name
-
+    args["camera"]["head_camera_type"] = camera_type
+    args["camera"]["wrist_camera_type"] = camera_type
+    
     embodiment_type = args.get("embodiment")
     embodiment_config_path = os.path.join(CONFIGS_PATH, "_embodiment_config.yml")
 
@@ -101,9 +103,12 @@ def main(task_name=None, task_config=None, camera_type=None, episode=0, gpu_id=0
 
     args["embodiment_name"] = embodiment_name
     args['task_config'] = task_config
-    args["save_path"] = os.path.join(args["save_path"], str(args["task_name"]), args["task_config"])
+    
+    # 使用自定义 save_path 或默认路径
+  
+    #args["save_path"] = os.path.join(save_path, str(args["task_name"]), args["task_config"], args["camera"]["head_camera_type"])
+    args["save_path"] = save_path
     args["episode_num"] = episode
-    args["camera_type"] = camera_type
     args["gpu_id"] = gpu_id
     run(task, args)
 
@@ -112,7 +117,8 @@ def run(TASK_ENV, args):
     epid, suc_num, fail_num, seed_list = 0, 0, 0, []
 
     print(f"Task Name: \033[34m{args['task_name']}\033[0m")
-
+    save_path_base = args["save_path"]
+    args["save_path"] = os.path.join(save_path, str(args["task_name"]), args["task_config"], args["camera"]["head_camera_type"])
     # =========== Collect Seed ===========
     os.makedirs(args["save_path"], exist_ok=True)
 
@@ -234,7 +240,8 @@ def run(TASK_ENV, args):
             TASK_ENV.remove_data_cache()
             assert TASK_ENV.check_success(), "Collect Error"
 
-        command = f"cd description && bash gen_episode_instructions.sh {args['task_name']} {args['task_config']} {args['language_num']}"
+        head_camera_type = args["camera"]["head_camera_type"]
+        command = f"cd description && bash gen_episode_instructions.sh {args['task_name']} {args['task_config']} {args['language_num']} {head_camera_type} {save_path_base}"
         os.system(command)
 
 
@@ -251,11 +258,13 @@ if __name__ == "__main__":
     parser.add_argument("--camera_type", type=str, default="head_camera")
     parser.add_argument("--episode", type=int, default=0)
     parser.add_argument("--gpu_id", type=int, default=0)
+    parser.add_argument("--save_path", type=str, default=None, help="Custom save path for collected data")
     parser = parser.parse_args()
     task_name = parser.task_name
     task_config = parser.task_config
     camera_type = parser.camera_type
     episode = parser.episode
     gpu_id = parser.gpu_id
+    save_path = parser.save_path
 
-    main(task_name=task_name, task_config=task_config, camera_type=camera_type, episode=episode, gpu_id=gpu_id)
+    main(task_name=task_name, task_config=task_config, camera_type=camera_type, episode=episode, gpu_id=gpu_id, save_path=save_path)

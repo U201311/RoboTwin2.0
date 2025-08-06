@@ -1,6 +1,11 @@
 FROM data_generation_v2:v2 
 COPY . /workspace/robotwin_generation
 RUN chmod +x /workspace/robotwin_generation/entrypoint.sh
+RUN chmod +x /workspace/robotwin_generation/collect_data.sh
+# Optional: Create user if needed
+# RUN useradd -m -s /bin/bash robotwin
+# RUN chown -R robotwin:robotwin /workspace/robotwin_generation
+# USER robotwin
 
 WORKDIR /workspace/robotwin_generation
 ENTRYPOINT ["/workspace/robotwin_generation/entrypoint.sh"]

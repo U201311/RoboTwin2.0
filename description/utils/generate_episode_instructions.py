@@ -139,9 +139,11 @@ def load_task_instructions(task_name: str) -> Dict[str, Any]:
     return task_data
 
 
-def load_scene_info(task_name: str, setting: str, scene_info_path: str) -> Dict[str, Dict]:
+def load_scene_info(task_name: str, setting: str, camera_type: str, save_path: str) -> Dict[str, Dict]:
     """Load the scene info from the JSON file in the data directory."""
-    file_path = os.path.join(parent_directory, f"../../{scene_info_path}/{task_name}/{setting}/scene_info.json")
+    #file_path = os.path.join(parent_directory, f"../../{scene_info_path}/{task_name}/{setting}/scene_info.json")
+    file_path = os.path.join(save_path, task_name, setting,camera_type, "scene_info.json")
+    
     try:
         with open(file_path, "r") as f:
             scene_data = json.load(f)
@@ -267,7 +269,20 @@ if __name__ == "__main__":
         default=100,
         help="Maximum number of descriptions per episode",
     )
-
+    
+    parser.add_argument(
+        "camera_type",
+        type=str,
+        default="D435",
+        help="Type of camera to use for generating descriptions",
+    )
+    
+    parser.add_argument(
+        "save_path",
+        type=str,
+        default="/workspace/embolab/data",
+        help="Path to save the generated episode descriptions",
+    )
     args = parser.parse_args()
     setting_file = os.path.join(
         parent_directory, f"../../task_config/{args.setting}.yml"
@@ -276,7 +291,7 @@ if __name__ == "__main__":
         args_dict = yaml.load(f.read(), Loader=yaml.FullLoader)
 
     # Load scene info and extract episode parameters
-    scene_info = load_scene_info(args.task_name, args.setting, args_dict['save_path'])
+    scene_info = load_scene_info(args.task_name, args.setting, args.camera_type, args.save_path)
     episodes = extract_episodes_from_scene_info(scene_info)
 
     # Generate descriptions

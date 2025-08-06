@@ -1,7 +1,7 @@
 #!/bin/bash
 
 get_json_value() {
-    python3 -c "import sys, json; print(json.load(open('/workspace/robotwin_generation/para/build_task.json'))$1)"
+    python3 -c "import sys, json; print(json.load(open('/workspace/embolab/params/build_task.json'))$1)"
 }
 
 TASK_NAME=$(get_json_value "['task_name']")
@@ -37,3 +37,6 @@ cd "$(dirname "$0")"
 } | tee -a "$LOG_FILE"
 
 echo "Log file saved to: $LOG_FILE"
+
+
+#bash collect_data.sh beat_block_hammer demo_randomized 0 L515 1 
