@@ -104,9 +104,13 @@ def get_model(usr_args):
     # 使用 hydra 正确实例化 DP3 模型
     DP3_Model = hydra.utils.instantiate(cfg.policy)
     
-    # 尝试加载检查点
+        # 尝试加载检查点
     if 'checkpoint_path' in usr_args and usr_args['checkpoint_path']:
-        checkpoint_path = usr_args['checkpoint_path']
+        # 构建检查点文件名
+        checkpoint_dir = f"{usr_args['task_name']}-{usr_args['task_config']}-{usr_args['expert_data_num']}_{usr_args['seed']}"
+        checkpoint_name = f"{usr_args.get('checkpoint_num', 'latest')}.ckpt"
+        checkpoint_path = os.path.join(usr_args['checkpoint_path'], checkpoint_dir,checkpoint_name)
+        usr_args['checkpoint_path'] = checkpoint_path
         if os.path.exists(checkpoint_path):
             print(f"Loading checkpoint from {checkpoint_path}")
             try:

@@ -5,11 +5,12 @@ task_config=${2}
 expert_data_num=${3}
 seed=${4}
 gpu_id=${5}
-epochs=${6}
-checkpoint_path=${7}
+camera_type=${6}
+epochs=${7}
+checkpoint_path=${8}
 
 if [ ! -d "./data/${task_name}-${task_config}-${expert_data_num}.zarr" ]; then
     bash process_data.sh ${task_name} ${task_config} ${expert_data_num}
 fi
 
-bash scripts/train_policy.sh robot_dp3 ${task_name} ${task_config} ${expert_data_num} train ${seed} ${gpu_id}  ${epochs} 
+bash scripts/train_policy.sh robot_dp3 ${task_name} ${task_config} ${expert_data_num} train ${seed} ${gpu_id} ${camera_type} ${epochs} ${checkpoint_path}

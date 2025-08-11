@@ -1,8 +1,10 @@
-FROM data_generation_v2:v2 
+FROM eval_dp3:v2 
 
 COPY . /workspace/robotwin_generation
 
-RUN find /workspace/robotwin_generation -name "*.sh" -exec chmod +x {} \;
+RUN chmod +x /workspace/robotwin_generation/entrypoint.sh
+RUN chmod +x /workspace/robotwin_generation/policy/DP3/eval.sh
+
 
 WORKDIR /workspace/robotwin_generation
 ENTRYPOINT ["/workspace/robotwin_generation/entrypoint.sh"]

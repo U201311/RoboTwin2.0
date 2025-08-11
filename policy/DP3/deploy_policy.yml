@@ -9,7 +9,7 @@ instruction_type: unseen
 # Add Parameters You Need
 config_name: robot_dp3
 checkpoint_num: 10
-checkpoint_path: "/workspace/robotwin_generation/policy/DP3/checkpoints/beat_block_hammer-demo_randomized-1_5000/10.ckpt"
+checkpoint_path: "/workspace/embolab/checkpoints/beat_block_hammer-demo_randomized-1_5000/10.ckpt"
 expert_data_num: 1
 use_rgb: false
 horizon: 8

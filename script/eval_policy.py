@@ -121,7 +121,7 @@ def main(usr_args):
     else:
         embodiment_name = str(embodiment_type[0]) + "+" + str(embodiment_type[1])
 
-    save_dir = Path(f"eval_result/{task_name}/{policy_name}/{task_config}/{ckpt_setting}/{current_time}")
+    save_dir = Path(f"/workspace/embolab/eval_result/{task_name}/{policy_name}/{task_config}/{ckpt_setting}/{current_time}")
     save_dir.mkdir(parents=True, exist_ok=True)
 
     if args["eval_video_log"]:
