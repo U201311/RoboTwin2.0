@@ -1,10 +1,10 @@
 {
     "task_id": "b5c75014c1142feab3ee395b4a0bcc0",
-    "task_name": "beat_block_hammer",
-    "gpu_id": "0",
+    "task_name": "click_alarmclock",
+    "gpu_id": "2",
     "data_generation": {
         "output_path": "/workspace/robotwin_generation/data",
-        "episode": 7,
+        "episode": 50,
         "camera_type": "D435",
         "log_path": "/workspace/robotwin_generation/logs"
     },

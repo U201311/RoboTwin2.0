@@ -7,7 +7,7 @@ docker run -itd  --rm --privileged=true  --gpus all \
 	-p 25953:5901 \
 	-p 22253:22 \
 	--user 0 \
-	--shm-size 128g \
+	--shm-size 256g \
 	-v /data1/liy/projects/embodyai/Robotwin_Generation/embolab:/workspace/embolab \
 	--name $NAME \
 	$DOCKER_IMAGE /bin/bash

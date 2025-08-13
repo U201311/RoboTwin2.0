@@ -40,3 +40,5 @@ echo "Log file saved to: $LOG_FILE"
 
 
 #bash collect_data.sh beat_block_hammer demo_randomized 0 L515 1 
+#bash collect_data.sh click_alarmclock demo_randomized 2 D435 50
+#bash collect_data.sh click_alarmclock demo_randomized 0 D435 50
