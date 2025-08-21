@@ -44,4 +44,4 @@ source /opt/conda/bin/activate RoboTwin
 
 echo "Starting eval for task: ${TASK_NAME} with camera type: ${CAMERA_TYPE} and expert data number: ${EXPERT_DATA_NUM}"
 bash eval.sh ${TASK_NAME}  demo_randomized demo_randomized ${EXPERT_DATA_NUM} ${SEED} ${GPU_ID}  ${EPOCHS} 
-#bash eval.sh beat_block_hammer demo_randomized demo_randomized 1 5000 0 1#
+#bash eval.sh beat_block_hammer demo_randomized demo_randomized 1 5000 0 10#

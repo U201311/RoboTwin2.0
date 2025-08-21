@@ -121,7 +121,7 @@ def main(usr_args):
     else:
         embodiment_name = str(embodiment_type[0]) + "+" + str(embodiment_type[1])
 
-    save_dir = Path(f"/workspace/embolab/eval_result/{task_name}/{policy_name}/{task_config}/{ckpt_setting}/{current_time}")
+    save_dir = Path(f"/workspace/embolab/eval_results/{task_name}/{policy_name}/{task_config}/{ckpt_setting}/{current_time}")
     save_dir.mkdir(parents=True, exist_ok=True)
 
     if args["eval_video_log"]:
@@ -177,10 +177,10 @@ def main(usr_args):
 
     file_path = os.path.join(save_dir, f"_result.txt")
     with open(file_path, "w") as file:
-        file.write(f"Timestamp: {current_time}\n\n")
-        file.write(f"Instruction Type: {instruction_type}\n\n")
+        #file.write(f"Timestamp: {current_time}\n\n")
+        #file.write(f"Instruction Type: {instruction_type}\n\n")
         # file.write(str(task_reward) + '\n')
-        file.write("\n".join(map(str, np.array(suc_nums) / test_num)))
+        file.write("Success rate:".join(map(str, np.array(suc_nums) / test_num)))
 
     print(f"Data has been saved to {file_path}")
     # return task_reward
