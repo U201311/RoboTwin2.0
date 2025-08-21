@@ -1,4 +1,3 @@
-models/
 data/*
 __pycache__/
 **/checkpoints/
