@@ -48,5 +48,4 @@ bash process_data.sh ${TASK_NAME} demo_randomized ${EXPERT_DATA_NUM} ${CAMERA_TY
 
 echo "Starting training for task: ${TASK_NAME} with camera type: ${CAMERA_TYPE} and expert data number: ${EXPERT_DATA_NUM}"
 bash train.sh ${TASK_NAME}  demo_randomized  ${EXPERT_DATA_NUM} ${SEED} ${GPU_ID}  ${EPOCHS} 
-#bash train.sh beat_block_hammer demo_randomized 1 0 0 50 
-#bash train.sh dual_shoes_place D435 1 5000 0 5 /workspace/3D-Diffusion-Policy/checkpoints
+#bash train.sh click_alarmclock demo_randomized 100 5000 2 1000
