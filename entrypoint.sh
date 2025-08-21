@@ -13,6 +13,9 @@ SEED=$(get_json_value "['train']['seed']")
 EPOCHS=$(get_json_value "['train']['epochs']")
 CHECKPOINT_PATH=$(get_json_value "['evaluation']['checkpoint_path']")
 LOG_DIR=$(get_json_value "['evaluation']['log_path']")
+CHECKPOINT_SETTING=$(get_json_value "['evaluation']['task_config']")
+TASK_CONFIG=$(get_json_value "['train']['task_config']")
+
 
 mkdir -p "$LOG_DIR"
 
@@ -43,5 +46,5 @@ source /opt/conda/bin/activate RoboTwin
 #python scripts/pkl2zarr_dp3.py blocks_stack_hard D435 1 --load_dir /workspace/3D-Diffusion-Policy/data2/blocks_stack_hard_D435_pkl --save_dir /workspace/3D-Diffusion-Policy/data/blocks_stack_hard_D435_1.zarr
 
 echo "Starting eval for task: ${TASK_NAME} with camera type: ${CAMERA_TYPE} and expert data number: ${EXPERT_DATA_NUM}"
-bash eval.sh ${TASK_NAME}  demo_randomized demo_randomized ${EXPERT_DATA_NUM} ${SEED} ${GPU_ID}  ${EPOCHS} 
+bash eval.sh ${TASK_NAME}  ${TASK_CONFIG} ${CHECKPOINT_SETTING} ${EXPERT_DATA_NUM} ${SEED} ${GPU_ID}  ${EPOCHS} 
 #bash eval.sh beat_block_hammer demo_randomized demo_randomized 1 5000 0 10#
