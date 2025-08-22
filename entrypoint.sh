@@ -20,8 +20,7 @@ echo "Save Path: $SAVE_PATH"
 
 mkdir -p "$LOG_DIR"
 DATE_STR=$(date +"%Y-%m-%d_%H-%M-%S")
-UUID=$(uuidgen)
-LOG_FILE="${LOG_DIR}/${TASK_NAME}_${CAMERA_TYPE}_${EXPERT_DATA_NUM}_${DATE_STR}_${UUID}.log"
+LOG_FILE="${LOG_DIR}/${TASK_NAME}_${CAMERA_TYPE}_${EXPERT_DATA_NUM}_${DATE_STR}.log"
 #source ~/miniconda3/bin/activate RoboTwin
 source /opt/conda/bin/activate RoboTwin
 
