@@ -14,6 +14,7 @@ SEED=$(get_json_value "['train']['seed']")
 EPOCHS=$(get_json_value "['train']['epochs']")
 CHECKPOINT_PATH=$(get_json_value "['train']['checkpoint_path']")
 LOG_DIR=$(get_json_value "['train']['log_path']")
+TASK_CONFIG=$(get_json_value "['train']['task_config']")
 
 mkdir -p "$LOG_DIR"
 
@@ -31,6 +32,7 @@ echo "Seed: ${SEED}"
 echo "Epoch: ${EPOCHS}"
 echo "Checkpoint Path: ${CHECKPOINT_PATH}"
 echo "Log Directory: ${LOG_DIR}"
+echo "Task Config: ${TASK_CONFIG}"
 
 
 # 切换到 DP3 工作目录
@@ -41,11 +43,11 @@ source /opt/conda/bin/activate RoboTwin
 
 echo "Starting data transfer for task: ${TASK_NAME} with camera type: ${CAMERA_TYPE} and expert data number: ${EXPERT_DATA_NUM}"
 # 拼凑完整的数据路径
-bash process_data.sh ${TASK_NAME} demo_randomized ${EXPERT_DATA_NUM} ${CAMERA_TYPE}
+bash process_data.sh ${TASK_NAME} ${TASK_CONFIG} ${EXPERT_DATA_NUM} ${CAMERA_TYPE}
 #python scripts/pkl2zarr_dp3.py ${TASK_NAME} ${CAMERA_TYPE} ${EXPERT_DATA_NUM} --load_dir ${FULL_DATA_PATH} --save_dir /workspace/3D-Diffusion-Policy/data/${TASK_NAME}_${CAMERA_TYPE}_${EXPERT_DATA_NUM}.zarr
 #python scripts/pkl2zarr_dp3.py dual_shoes_place D435 1 --load_dir /workspace/3D-Diffusion-Policy/data2/dual_shoes_place_D435_pkl --save_dir /workspace/3D-Diffusion-Policy/data/dual_shoes_place_D435_1.zarr
 #python scripts/pkl2zarr_dp3.py blocks_stack_hard D435 1 --load_dir /workspace/3D-Diffusion-Policy/data2/blocks_stack_hard_D435_pkl --save_dir /workspace/3D-Diffusion-Policy/data/blocks_stack_hard_D435_1.zarr
 
 echo "Starting training for task: ${TASK_NAME} with camera type: ${CAMERA_TYPE} and expert data number: ${EXPERT_DATA_NUM}"
-bash train.sh ${TASK_NAME}  demo_randomized  ${EXPERT_DATA_NUM} ${SEED} ${GPU_ID}  ${EPOCHS} 
+bash train.sh ${TASK_NAME}  ${TASK_CONFIG}  ${EXPERT_DATA_NUM} ${SEED} ${GPU_ID}  ${EPOCHS} 
 #bash train.sh click_alarmclock demo_randomized 100 5000 2 1000
