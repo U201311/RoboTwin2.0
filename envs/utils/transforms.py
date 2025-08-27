@@ -2,7 +2,7 @@ import numpy as np
 from pathlib import Path
 import sapien.core as sapien
 import transforms3d as t3d
-from typing import Literal
+from typing import Literal, List
 
 
 def pause(task, till_close=False, show_point=False):
@@ -56,7 +56,7 @@ def local_timer(name: str):
 
 
 class Point:
-    points: list["Point"] = []
+    points: List["Point"] = []
     """特定 base 坐标系下的点"""
 
     def __init__(
