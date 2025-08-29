@@ -169,7 +169,7 @@ def extract_episodes_from_scene_info(scene_info: Dict) -> List[Dict[str, str]]:
 
 def save_episode_descriptions(task_name: str, setting: str, generated_descriptions: List[Dict]):
     """Save generated descriptions to output files."""
-    output_dir = os.path.join(parent_directory, f"../../data/{task_name}/{setting}/instructions")
+    output_dir = os.path.join(parent_directory, f"../../../embolab/data/{task_name}/{setting}/instructions")
     os.makedirs(output_dir, exist_ok=True)
 
     for episode_desc in generated_descriptions:
