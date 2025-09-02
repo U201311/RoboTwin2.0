@@ -4,7 +4,7 @@ get_json_value() {
     python3 -c "import sys, json; print(json.load(open('/workspace/embolab/params/build_task.json'))$1)"
 }
 
-TASK_NAME=$(get_json_value "['task_name']")
+TASK_NAME=$(get_json_value "['data_generation']['task_name']")
 CAMERA_TYPE=$(get_json_value "['data_generation']['camera_type']")
 EXPERT_DATA_NUM=$(get_json_value "['data_generation']['episode']")
 GPU_ID=$(get_json_value "['gpu_id']")
