@@ -35,7 +35,7 @@ class PI0:
         self.policy = _policy_config.create_trained_policy(
             config,
             f"policy/pi0/checkpoints/{self.train_config_name}/{self.model_name}/{self.checkpoint_id}",
-            robotwin_repo_id=model_name)
+            robotwin_repo_id="demo_randomized_repo")
         print("loading model success!")
         self.img_size = (224, 224)
         self.observation_window = None

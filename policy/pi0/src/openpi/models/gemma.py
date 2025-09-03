@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 """Gemma adaptation for Pi, taken from big_vision.
 
 We follow this einsum axis naming convention:
@@ -92,10 +93,7 @@ def get_config(variant: Variant) -> Config:
             num_heads=8,
             num_kv_heads=1,
             head_dim=256,
-            lora_configs={
-                "attn": lora.LoRAConfig(rank=16, alpha=16.0),
-                "ffn": lora.LoRAConfig(rank=16, alpha=16.0)
-            },
+            lora_configs={"attn": lora.LoRAConfig(rank=16, alpha=16.0), "ffn": lora.LoRAConfig(rank=16, alpha=16.0)},
         )
     if variant == "gemma_300m_lora":
         # 311M params
@@ -106,25 +104,22 @@ def get_config(variant: Variant) -> Config:
             num_heads=8,
             num_kv_heads=1,
             head_dim=256,
-            lora_configs={
-                "attn": lora.LoRAConfig(rank=32, alpha=32.0),
-                "ffn": lora.LoRAConfig(rank=32, alpha=32.0)
-            },
+            lora_configs={"attn": lora.LoRAConfig(rank=32, alpha=32.0), "ffn": lora.LoRAConfig(rank=32, alpha=32.0)},
         )
     raise ValueError(f"Unknown variant: {variant}")
 
 
 @at.typecheck
 class RMSNorm(nn.Module):
-
     @nn.compact
     def __call__(self, x):
         dtype = x.dtype  # original dtype, could be half-precision
         scale = self.param("scale", nn.initializers.zeros_init(), (x.shape[-1]))
         var = jnp.mean(jnp.square(x.astype(jnp.float32)), axis=-1, keepdims=True)  # compute variance in float32
         normed_inputs = jnp.asarray(x * jnp.reciprocal(jnp.sqrt(var + 1e-06)))  # compute normalization in float32
-        normed_inputs = normed_inputs * (1 + scale
-                                         )  # scale by learned parameter in float32 (matches Flax implementation)
+        normed_inputs = normed_inputs * (
+            1 + scale
+        )  # scale by learned parameter in float32 (matches Flax implementation)
         return normed_inputs.astype(dtype)  # return in original dtype
 
 
@@ -143,7 +138,7 @@ class Embedder(nn.Module):
         )
 
     def encode(self, x):
-        x = self.input_embedding_table[(x, )]
+        x = self.input_embedding_table[(x,)]
         x *= jnp.sqrt(self.embed_dim).astype(x.dtype)
         return x
 
@@ -182,7 +177,7 @@ class Attention(nn.Module):
                 q_einsum = lora.Einsum(
                     shape=(config.num_heads, config.width, config.head_dim),
                     name=_name("q_einsum", i),
-                    init_fn=nn.initializers.lecun_normal(in_axis=-2, out_axis=-1, batch_axis=(0, )),
+                    init_fn=nn.initializers.lecun_normal(in_axis=-2, out_axis=-1, batch_axis=(0,)),
                     lora_config=config.lora_configs.get("attn"),
                 )
                 q = q_einsum("BTD,NDH->BTNH", x)
@@ -198,7 +193,7 @@ class Attention(nn.Module):
         q, k, v = (jnp.concatenate(y, axis=1) for y in zip(*qkvs, strict=True))
 
         q = _apply_rope(q, positions=positions)
-        q *= self.configs[0].head_dim**-0.5
+        q *= self.configs[0].head_dim ** -0.5
 
         k = _apply_rope(k, positions=positions)
 
@@ -215,7 +210,8 @@ class Attention(nn.Module):
 
         if attn_mask.shape != (q.shape[0], 1, q.shape[1], k.shape[1]):
             raise ValueError(
-                f"Attention mask with shape {attn_mask.shape} but shapes for q and k are: {q.shape} and {k.shape}")
+                f"Attention mask with shape {attn_mask.shape} but shapes for q and k are: {q.shape} and {k.shape}"
+            )
 
         # big_neg = jnp.finfo(logits.dtype).min
         big_neg = -2.3819763e38  # See gemma/modules.py
@@ -257,7 +253,7 @@ class FeedForward(nn.Module):
         dtype = x.dtype  # original dtype, could be half-precision
         w_gating = self.param(
             "gating_einsum",
-            nn.initializers.lecun_normal(in_axis=-2, out_axis=-1, batch_axis=(0, )),
+            nn.initializers.lecun_normal(in_axis=-2, out_axis=-1, batch_axis=(0,)),
             (2, self.features, self.hidden_dim),
         ).astype(dtype)
         ff_gate = jnp.dot(x, w_gating[0])
@@ -284,7 +280,13 @@ class Block(nn.Module):
 
     dropout: float = 0.0
     dropout_bdims: tuple[int, ...] = ()
-
+    vision_language_expert_id: int = 0
+    action_expert_id: int = 1 # 0 for PaliGemma, 1 for action expert
+    num_experts: int = 8
+    top_k: int = 2
+    use_general_expert: bool = True
+    general_expert_weight: float = 0.5
+    
     @nn.compact
     def __call__(self, xs, kv_cache, positions, attn_mask, decode, deterministic=True):  # noqa: FBT002
         xs = sharding.activation_sharding_constraint(xs)
@@ -306,15 +308,39 @@ class Block(nn.Module):
         xs = sharding.activation_sharding_constraint(xs)
 
         out = []
+        moe_loss = 0.0
+        gate_scores = None
+        expert_activation_rates = None
+
         for i, (x, config) in enumerate(zip(xs, self.configs, strict=True)):
             if x is not None:
                 x = RMSNorm(name=_name("pre_ffw_norm", i))(x)  # noqa: PLW2901
-                x = lora.FeedForward(  # noqa: PLW2901
-                    features=config.width,
-                    hidden_dim=config.mlp_dim,
-                    name=_name("mlp", i),
-                    lora_config=config.lora_configs.get("ffn"),
-                )(x)
+                if i == self.action_expert_id:
+                    routed_expert_output, moe_loss, gate_scores, expert_activation_rates = lora.MoEFeedForward(
+                        expert_dim=config.width,
+                        hidden_dim=config.mlp_dim,  
+                        num_experts=self.num_experts,
+                        top_k=self.top_k,
+                        name=_name("moe_ffn", i),
+                    )(x)
+                    if self.use_general_expert:
+                        general_expert_output = lora.FeedForward(  # noqa: PLW2901
+                            features=config.width,
+                            hidden_dim=config.mlp_dim,
+                            name=_name("mlp", i),
+                            lora_config=config.lora_configs.get("ffn"),
+                        )(x)
+                        x = general_expert_output * self.general_expert_weight + routed_expert_output * (1 - self.general_expert_weight)
+                    else:
+                        x = routed_expert_output
+                         # noqa: PLW2901
+                else:
+                    x = lora.FeedForward(  # noqa: PLW2901
+                        features=config.width,
+                        hidden_dim=config.mlp_dim,
+                        name=_name("mlp", i),
+                        lora_config=config.lora_configs.get("ffn"),
+                    )(x)
             out.append(x)
 
         out = sharding.activation_sharding_constraint(out)
@@ -323,7 +349,7 @@ class Block(nn.Module):
         xs = jax.tree.map(lambda x, y: x + y, xs, out)
         xs = sharding.activation_sharding_constraint(xs)
 
-        return xs, kv_cache
+        return xs, (kv_cache, moe_loss, gate_scores, expert_activation_rates)
 
 
 KVCache: TypeAlias = tuple[at.Float[at.Array, "l b _t _k _h"], at.Float[at.Array, "l b _t _v _h"]]
@@ -351,16 +377,13 @@ class Module(nn.Module):
         block_cls = nn.remat(
             Block,
             prevent_cse=False,
-            static_argnums=(5, ),  # 0=self, 5=deterministic
+            static_argnums=(5,),  # 0=self, 5=deterministic
             policy=jax.checkpoint_policies.nothing_saveable,
         )
         self.layers = nn.scan(
             block_cls,
             variable_axes={"params": 0},
-            split_rngs={
-                "params": True,
-                "dropout": True
-            },
+            split_rngs={"params": True, "dropout": True},
             in_axes=(0, nn.broadcast, nn.broadcast, nn.broadcast),  # 0=kv_cache, 1=positions, 2=mask, 3=decode
             length=self.configs[0].depth,
         )(
@@ -384,15 +407,16 @@ class Module(nn.Module):
         *,
         kv_cache: KVCache | None = None,
         deterministic: bool = True,
-    ) -> tuple[Sequence[at.Float[at.Array, "b _t _d"] | None], KVCache]:
+    ) -> tuple[Sequence[at.Float[at.Array, "b _t _d"] | None], KVCache, at.Float[at.Array, ""], jnp.ndarray | None]:
         embedded = jax.tree.map(lambda e: e.astype(self.embed_dtype), embedded)
         mask = jnp.asarray(mask)[:, None, :, :]
 
-        embedded, kv_cache = self.layers(embedded, kv_cache, positions, mask, deterministic)
+        embedded, (kv_cache, moe_loss, gate_scores, expert_activation_rates) = self.layers(embedded, kv_cache, positions, mask, deterministic)
 
         assert all(e.dtype == jnp.dtype(self.embed_dtype) for e in embedded if e is not None)
-
-        return [f(e) if e is not None else e for f, e in zip(self.final_norms, embedded, strict=True)], kv_cache
+        total_moe_loss = jnp.sum(moe_loss)
+        # gate_scores not returned for now
+        return [f(e) if e is not None else e for f, e in zip(self.final_norms, embedded, strict=True)], kv_cache, total_moe_loss, expert_activation_rates
 
     def init(self):
         """Convenience method for initializing all parameters, necessary due to the quirks of linen."""

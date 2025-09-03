@@ -50,3 +50,4 @@ echo "Starting training for task: ${TASK_NAME} with camera type: ${CAMERA_TYPE} 
 bash train.sh ${TASK_NAME}  demo_randomized  ${EXPERT_DATA_NUM} ${SEED} ${GPU_ID}  ${EPOCHS} 
 #bash train.sh beat_block_hammer demo_randomized 1 0 0 50 
 #bash train.sh dual_shoes_place D435 1 5000 0 5 /workspace/3D-Diffusion-Policy/checkpoints
+#bash eval.sh beat_block_hammer demo_randomized pi0_multi_res_moe_aloha_robotwin_full moe_demo_randomized 0 0,1,2,3

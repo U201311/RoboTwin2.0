@@ -46,14 +46,15 @@ def make_attn_mask(input_mask, mask_ar):
 
 
 @at.typecheck
-def posemb_sincos(pos: at.Real[at.Array, " b"], embedding_dim: int, min_period: float,
-                  max_period: float) -> at.Float[at.Array, "b {embedding_dim}"]:
+def posemb_sincos(
+    pos: at.Real[at.Array, " b"], embedding_dim: int, min_period: float, max_period: float
+) -> at.Float[at.Array, "b {embedding_dim}"]:
     """Computes sine-cosine positional embedding vectors for scalar positions."""
     if embedding_dim % 2 != 0:
         raise ValueError(f"embedding_dim ({embedding_dim}) must be divisible by 2")
 
     fraction = jnp.linspace(0.0, 1.0, embedding_dim // 2)
-    period = min_period * (max_period / min_period)**fraction
+    period = min_period * (max_period / min_period) ** fraction
     sinusoid_input = jnp.einsum(
         "i,j->ij",
         pos,
@@ -115,25 +116,32 @@ class Pi0Config(_model.BaseModelConfig):
         gemma_params_filter = nnx_utils.PathRegex(".*llm.*")
         action_expert_params_filter = nnx_utils.PathRegex(".*llm.*_1.*")
         if "lora" in self.paligemma_variant:
-            filters.append(gemma_params_filter, )
+            filters.append(
+                gemma_params_filter,
+            )
             if "lora" not in self.action_expert_variant:
                 # If only freeze gemma params, exclude action expert params.
-                filters.append(nnx.Not(action_expert_params_filter), )
+                filters.append(
+                    nnx.Not(action_expert_params_filter),
+                )
             has_lora = True
         elif "lora" in self.action_expert_variant:
-            filters.append(action_expert_params_filter, )
+            filters.append(
+                action_expert_params_filter,
+            )
             has_lora = True
 
         if has_lora:
             # If any lora is used, exclude all lora params.
-            filters.append(nnx.Not(nnx_utils.PathRegex(".*lora.*")), )
+            filters.append(
+                nnx.Not(nnx_utils.PathRegex(".*lora.*")),
+            )
         if not filters:
             return nnx.Nothing
         return nnx.All(*filters)
 
 
 class Pi0(_model.BaseModel):
-
     def __init__(self, config: Pi0Config, rngs: nnx.Rngs):
         super().__init__(config.action_dim, config.action_horizon, config.max_token_len)
         paligemma_config = _gemma.get_config(config.paligemma_variant)
@@ -143,7 +151,8 @@ class Pi0(_model.BaseModel):
             _gemma.Module(
                 configs=[paligemma_config, action_expert_config],
                 embed_dtype=config.dtype,
-            ))
+            )
+        )
         llm.lazy_init(rngs=rngs, method="init")
         img = nnx_bridge.ToNNX(
             _siglip.Module(
@@ -152,7 +161,8 @@ class Pi0(_model.BaseModel):
                 pool_type="none",
                 scan=True,
                 dtype_mm=config.dtype,
-            ))
+            )
+        )
         img.lazy_init(next(iter(config.fake_obs().images.values())), train=False, rngs=rngs)
         self.PaliGemma = nnx.Dict(llm=llm, img=img)
         self.state_proj = nnx.Linear(config.action_dim, action_expert_config.width, rngs=rngs)
@@ -173,11 +183,13 @@ class Pi0(_model.BaseModel):
             image_tokens, _ = self.PaliGemma.img(obs.images[name], train=False)
 
             tokens.append(image_tokens)
-            input_mask.append(einops.repeat(
-                obs.image_masks[name],
-                "b -> b s",
-                s=image_tokens.shape[1],
-            ))
+            input_mask.append(
+                einops.repeat(
+                    obs.image_masks[name],
+                    "b -> b s",
+                    s=image_tokens.shape[1],
+                )
+            )
             # image tokens attend to each other
             ar_mask += [False] * image_tokens.shape[1]
 
@@ -226,12 +238,9 @@ class Pi0(_model.BaseModel):
         return tokens, input_mask, ar_mask
 
     @override
-    def compute_loss(self,
-                     rng: at.KeyArrayLike,
-                     observation: _model.Observation,
-                     actions: _model.Actions,
-                     *,
-                     train: bool = False) -> at.Float[at.Array, "*b ah"]:
+    def compute_loss(
+        self, rng: at.KeyArrayLike, observation: _model.Observation, actions: _model.Actions, *, train: bool = False
+    ) -> tuple[at.Float[at.Array, "*b ah"], jnp.ndarray, jnp.ndarray | None]:
         preprocess_rng, noise_rng, time_rng = jax.random.split(rng, 3)
         observation = _model.preprocess_observation(preprocess_rng, observation, train=train)
 
@@ -249,12 +258,12 @@ class Pi0(_model.BaseModel):
         ar_mask = jnp.concatenate([prefix_ar_mask, suffix_ar_mask], axis=0)
         attn_mask = make_attn_mask(input_mask, ar_mask)
         positions = jnp.cumsum(input_mask, axis=1) - 1
-        (prefix_out, suffix_out), _ = self.PaliGemma.llm([prefix_tokens, suffix_tokens],
-                                                         mask=attn_mask,
-                                                         positions=positions)
-        v_t = self.action_out_proj(suffix_out[:, -self.action_horizon:])
+        (prefix_out, suffix_out), _, moe_loss, expert_activation_rates = self.PaliGemma.llm(
+            [prefix_tokens, suffix_tokens], mask=attn_mask, positions=positions
+        )
+        v_t = self.action_out_proj(suffix_out[:, -self.action_horizon :])
 
-        return jnp.mean(jnp.square(v_t - u_t), axis=-1)
+        return jnp.mean(jnp.square(v_t - u_t), axis=-1), moe_loss, expert_activation_rates
 
     @override
     def sample_actions(
@@ -275,12 +284,13 @@ class Pi0(_model.BaseModel):
         prefix_tokens, prefix_mask, prefix_ar_mask = self.embed_prefix(observation)
         prefix_attn_mask = make_attn_mask(prefix_mask, prefix_ar_mask)
         positions = jnp.cumsum(prefix_mask, axis=1) - 1
-        _, kv_cache = self.PaliGemma.llm([prefix_tokens, None], mask=prefix_attn_mask, positions=positions)
+        _, kv_cache, _, _ = self.PaliGemma.llm([prefix_tokens, None], mask=prefix_attn_mask, positions=positions)
 
         def step(carry):
             x_t, time = carry
-            suffix_tokens, suffix_mask, suffix_ar_mask = self.embed_suffix(observation, x_t,
-                                                                           jnp.broadcast_to(time, batch_size))
+            suffix_tokens, suffix_mask, suffix_ar_mask = self.embed_suffix(
+                observation, x_t, jnp.broadcast_to(time, batch_size)
+            )
             # `suffix_attn_mask` is shape (b, suffix_len, suffix_len) indicating how the suffix tokens can attend to each
             # other
             suffix_attn_mask = make_attn_mask(suffix_mask, suffix_ar_mask)
@@ -298,12 +308,11 @@ class Pi0(_model.BaseModel):
             # `positions` is shape (b, suffix_len) indicating the positions of the suffix tokens
             positions = jnp.sum(prefix_mask, axis=-1)[:, None] + jnp.cumsum(suffix_mask, axis=-1) - 1
 
-            (prefix_out, suffix_out), _ = self.PaliGemma.llm([None, suffix_tokens],
-                                                             mask=full_attn_mask,
-                                                             positions=positions,
-                                                             kv_cache=kv_cache)
+            (prefix_out, suffix_out), _, _, _ = self.PaliGemma.llm(
+                [None, suffix_tokens], mask=full_attn_mask, positions=positions, kv_cache=kv_cache
+            )
             assert prefix_out is None
-            v_t = self.action_out_proj(suffix_out[:, -self.action_horizon:])
+            v_t = self.action_out_proj(suffix_out[:, -self.action_horizon :])
 
             return x_t + dt * v_t, time + dt
 

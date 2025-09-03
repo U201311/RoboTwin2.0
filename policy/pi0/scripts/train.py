@@ -22,6 +22,75 @@ import openpi.training.checkpoints as _checkpoints
 import openpi.training.config as _config
 import openpi.training.data_loader as _data_loader
 import openpi.training.optimizer as _optimizer
+
+
+def manually_update_moe_bias(
+    params: at.PyTree,
+    expert_activation_rates: jnp.ndarray,
+    step: int,
+    lower_threshold_ratio: float = 0.7,
+    upper_threshold_ratio: float = 1.3,
+    bias_update_speed: float = 0.01,
+    warmup_steps: int = 1000,
+) -> at.PyTree:
+    """Manually update MoE bias parameters based on expert activation rates.
+    
+    Args:
+        params: Model parameters
+        expert_activation_rates: Shape (num_layers, num_experts_per_layer)
+        step: Current training step
+        lower_threshold_ratio: If relative_rate < this, increase bias
+        upper_threshold_ratio: If relative_rate > this, decrease bias
+        bias_update_speed: Amount to adjust bias by
+        warmup_steps: No updates during warmup
+    
+    Returns:
+        Updated parameters with modified bias values
+    """
+    # Skip during warmup using JAX conditional
+    def no_update():
+        return params
+        
+    def do_update():
+        # Direct access to bias parameters (assuming structure is correct)
+        current_bias = params['PaliGemma']['llm']['layers']['moe_ffn_1']['b_gating'].value  # Shape: (num_layers, num_experts)
+        
+        # Calculate relative activation rates (expert_rate / layer_mean_rate)
+        layer_mean_rates = jnp.mean(expert_activation_rates, axis=1, keepdims=True)  # (num_layers, 1)
+        layer_mean_rates = jnp.maximum(layer_mean_rates, 1e-8)  # Avoid division by zero
+        relative_rates = expert_activation_rates / layer_mean_rates  # (num_layers, num_experts)
+        
+        # Calculate bias updates
+        bias_updates = jnp.where(
+            relative_rates < lower_threshold_ratio,
+            bias_update_speed,  # Increase bias for under-activated experts
+            jnp.where(
+                relative_rates > upper_threshold_ratio,
+                -bias_update_speed,  # Decrease bias for over-activated experts
+                0.0  # No change for experts within thresholds
+            )
+        )
+        
+        # Apply updates
+        new_bias = current_bias + bias_updates
+        
+        # Direct parameter update approach
+        # Since this is within a JIT function, we can modify the parameter directly
+        old_bias_param = params['PaliGemma']['llm']['layers']['moe_ffn_1']['b_gating']
+        new_bias_param = old_bias_param.replace(value=new_bias)
+        
+        # Update the parameter in place (JAX will handle the immutability)
+        params['PaliGemma']['llm']['layers']['moe_ffn_1']['b_gating'] = new_bias_param
+        updated_params = params
+        
+        return updated_params
+    
+    return jax.lax.cond(
+        step < warmup_steps,
+        no_update,
+        do_update
+    )
+
 import openpi.training.sharding as sharding
 import openpi.training.utils as training_utils
 import openpi.training.weight_loaders as _weight_loaders
@@ -94,6 +163,7 @@ def _load_weights_and_validate(loader: _weight_loaders.WeightLoader, params_shap
     })
 
 
+
 @at.typecheck
 def init_train_state(
     config: _config.TrainConfig,
@@ -123,7 +193,7 @@ def init_train_state(
             config.freeze_filter,
             lambda p: p.replace(p.value.astype(jnp.bfloat16)),
         )
-
+        
         return training_utils.TrainState(
             step=0,
             params=params,
@@ -170,20 +240,67 @@ def train_step(
         rng: at.KeyArrayLike,
         observation: _model.Observation,
         actions: _model.Actions,
-    ):
-        chunked_loss = model.compute_loss(rng, observation, actions, train=True)
-        return jnp.mean(chunked_loss)
+    ):  
+        chunked_loss, moe_loss, expert_activation_rates = model.compute_loss(rng, observation, actions, train=True)
+        # 返回标量损失和辅助信息字典
+        total_loss = jnp.mean(chunked_loss)
+        aux_data = {
+            'moe_loss': jnp.mean(moe_loss),
+            'expert_activation_rates': expert_activation_rates
+        }
+        return total_loss, aux_data
+        # def warmup_branch(_):
+        #     return (
+        #         jnp.mean(chunked_loss) + 0.0003 * jnp.mean(moe_loss),
+        #         jnp.mean(moe_loss),
+        #     )
+
+        # def normal_branch(_):
+        #     return (
+        #         jnp.mean(chunked_loss) + 0.00003 * jnp.mean(moe_loss),
+        #         jnp.mean(moe_loss),
+        #     )
+
+        # return jax.lax.cond(
+        # state.step <= 30000,  # 条件
+        # warmup_branch,        # True 分支
+        # normal_branch,        # False 分支
+        # operand=None          # 传递参数（这里不用）
+        # )
 
     train_rng = jax.random.fold_in(rng, state.step)
     observation, actions = batch
 
     # Filter out frozen params.
     diff_state = nnx.DiffState(0, config.trainable_filter)
-    loss, grads = nnx.value_and_grad(loss_fn, argnums=diff_state)(model, train_rng, observation, actions)
+    (loss, aux_data), grads = nnx.value_and_grad(loss_fn, argnums=diff_state, has_aux=True)(
+        model, train_rng, observation, actions
+    )
+    moe_loss = aux_data['moe_loss']
+    expert_activation_rates = aux_data['expert_activation_rates']
 
     params = state.params.filter(config.trainable_filter)
-    updates, new_opt_state = state.tx.update(grads, state.opt_state, params)
+    # Pass expert activation rates and step to the optimizer for bias updating
+    extra_args = {
+        'step': state.step,
+    }
+    if expert_activation_rates is not None:
+        extra_args['expert_activation_rates'] = expert_activation_rates
+    
+    updates, new_opt_state = state.tx.update(grads, state.opt_state, params, **extra_args)
     new_params = optax.apply_updates(params, updates)
+
+    # Manual bias update step
+    if expert_activation_rates is not None:
+        new_params = manually_update_moe_bias(
+            new_params,
+            expert_activation_rates,
+            state.step,
+            lower_threshold_ratio=0.25,
+            upper_threshold_ratio=4, 
+            bias_update_speed=0.001,
+            warmup_steps=0,
+        )
 
     # Update the model in place and return the new full state.
     nnx.update(model, new_params)
@@ -200,8 +317,41 @@ def train_step(
             ),
         )
 
-    # Filter out params that aren't kernels.
-    kernel_params = nnx.state(
+    # Filter out params that aren't kernels, and only include trainable params.
+    kernel_and_trainable_filter = nnx.All(
+        nnx.Param,
+        config.trainable_filter,  # Only include trainable parameters
+        nnx.Not(nnx_utils.PathRegex(".*/(bias|scale|pos_embedding|input_embedding)")),
+        lambda _, x: x.value.ndim > 1,
+    )
+    kernel_and_trainable_filter = nnx.All(
+        nnx.Param,
+        config.trainable_filter,  # Only include trainable parameters
+        nnx.Not(nnx_utils.PathRegex(".*/(bias|scale|pos_embedding|input_embedding)")),
+        lambda _, x: x.value.ndim > 1,
+    )
+    moe_filter = nnx_utils.PathRegex(".*moe.*",)
+    router_filter = nnx_utils.PathRegex(".*moe.*gating.*",)
+    kernel_moe = nnx.All(
+        nnx.Param,
+        config.trainable_filter,  # Only include trainable parameters
+        moe_filter,
+        nnx.Not(nnx_utils.PathRegex(".*/(bias|scale|pos_embedding|input_embedding)")),
+        lambda _, x: x.value.ndim > 1,
+    )
+    kernel_router = nnx.All(
+        nnx.Param,
+        config.trainable_filter,  # Only include trainable parameters
+        router_filter,
+        nnx.Not(nnx_utils.PathRegex(".*/(bias|scale|pos_embedding|input_embedding)")),
+        lambda _, x: x.value.ndim > 1,
+    )
+
+    kernel_params = nnx.state(model, kernel_and_trainable_filter)
+    moe_params = nnx.state(model, kernel_moe)
+    router_params = nnx.state(model, kernel_router)
+    # Also compute total model param norm for comparison
+    all_kernel_params = nnx.state(
         model,
         nnx.All(
             nnx.Param,
@@ -209,11 +359,57 @@ def train_step(
             lambda _, x: x.value.ndim > 1,
         ),
     )
+    
     info = {
         "loss": loss,
+        "moe_loss": moe_loss,
         "grad_norm": optax.global_norm(grads),
-        "param_norm": optax.global_norm(kernel_params),
+        "param_norm": optax.global_norm(kernel_params),  # Only trainable kernels
+        "moe_norm": optax.global_norm(moe_params),  # Only trainable MoE kernels
+        "router_norm": optax.global_norm(router_params),  # Only trainable Router kernels
+        "total_param_norm": optax.global_norm(all_kernel_params),  # All kernels
     }
+    # Add expert activation rates if available
+    if expert_activation_rates is not None:
+        # expert_activation_rates shape is (num_layers, num_experts_per_layer)
+        if expert_activation_rates.ndim == 2:
+            num_layers, num_experts_per_layer = expert_activation_rates.shape
+            
+            # 只记录激活率的基本统计信息
+            
+            # 记录激活率的统计信息
+            info["activation_rate_mean"] = jnp.mean(expert_activation_rates)
+            info["activation_rate_std"] = jnp.std(expert_activation_rates)
+            info["activation_rate_min"] = jnp.min(expert_activation_rates)
+            info["activation_rate_max"] = jnp.max(expert_activation_rates)
+            
+            # 计算并记录相对激活率统计
+            layer_mean_rates = jnp.mean(expert_activation_rates, axis=1, keepdims=True)
+            layer_mean_rates = jnp.maximum(layer_mean_rates, 1e-8)  # 避免除零
+            relative_activation_rates = expert_activation_rates / layer_mean_rates
+            
+            info["relative_activation_mean"] = jnp.mean(relative_activation_rates)
+            info["relative_activation_std"] = jnp.std(relative_activation_rates)
+            info["relative_activation_min"] = jnp.min(relative_activation_rates)
+            info["relative_activation_max"] = jnp.max(relative_activation_rates)
+            
+            # 只保留相对激活率的统计信息，不记录单独的expert值
+            
+            # 记录MoE bias值（直接访问bias参数，避免复杂的树操作）
+            try:
+                bias_param = new_params['PaliGemma']['llm']['layers']['moe_ffn_1']['b_gating'].value
+                all_bias = bias_param.flatten()
+                info["bias_mean"] = jnp.mean(all_bias)
+                info["bias_std"] = jnp.std(all_bias)
+                info["bias_min"] = jnp.min(all_bias)
+                info["bias_max"] = jnp.max(all_bias)
+            except (KeyError, AttributeError):
+                # 如果无法直接访问bias参数，跳过记录
+                pass
+        else:
+            # 如果是1D数组，直接处理
+            for i, rate in enumerate(expert_activation_rates):
+                info[f"expert_{i}_activation_rate"] = rate
     return new_state, info
 
 
@@ -255,6 +451,42 @@ def main(config: _config.TrainConfig):
     train_state, train_state_sharding = init_train_state(config, init_rng, mesh, resume=resuming)
     jax.block_until_ready(train_state)
     logging.info(f"Initialized train state:\n{training_utils.array_tree_to_info(train_state.params)}")
+    
+    # Log which parameters are unfrozen (trainable)
+    trainable_params = train_state.params.filter(config.trainable_filter)
+    frozen_params = train_state.params.filter(config.freeze_filter)
+    
+    def get_param_info(params_tree):
+        """Extract parameter paths and count total parameters from a nested parameter tree."""
+        flat_params = traverse_util.flatten_dict(params_tree.to_pure_dict(), sep='/')
+        paths = list(flat_params.keys())
+        total_params = sum(v.size if hasattr(v, 'size') else 0 for v in flat_params.values())
+        return paths, total_params
+    
+    trainable_paths, trainable_param_count = get_param_info(trainable_params)
+    frozen_paths, frozen_param_count = get_param_info(frozen_params)
+    total_param_count = trainable_param_count + frozen_param_count
+    
+    logging.info("=" * 80)
+    logging.info("PARAMETER FREEZING STATUS:")
+    logging.info("=" * 80)
+    logging.info(f"Total parameters: {total_param_count:,}")
+    logging.info(f"Trainable parameters: {trainable_param_count:,} ({trainable_param_count/total_param_count*100:.1f}%)")
+    logging.info(f"Frozen parameters: {frozen_param_count:,} ({frozen_param_count/total_param_count*100:.1f}%)")
+    logging.info("")
+    
+    logging.info("TRAINABLE (UNFROZEN) PARAMETERS:")
+    for path in sorted(trainable_paths):
+        logging.info(f"  ✓ {path}")
+    
+    logging.info("")
+    logging.info("FROZEN PARAMETERS (first 50 shown):")
+    for path in sorted(frozen_paths)[:50]:
+        logging.info(f"  ✗ {path}")
+    if len(frozen_paths) > 50:
+        logging.info(f"  ... and {len(frozen_paths) - 50} more frozen parameters")
+    
+    logging.info("=" * 80)
 
     if resuming:
         train_state = _checkpoints.restore_state(checkpoint_manager, train_state, data_loader)
@@ -282,7 +514,11 @@ def main(config: _config.TrainConfig):
         if step % config.log_interval == 0:
             stacked_infos = common_utils.stack_forest(infos)
             reduced_info = jax.device_get(jax.tree.map(jnp.mean, stacked_infos))
-            info_str = ", ".join(f"{k}={v:.4f}" for k, v in reduced_info.items())
+            # info_str = ", ".join(f"{k}={v:.4f}" for k, v in reduced_info.items())
+            info_str = ", ".join(
+                f"{k}={float(v):.4f}" if isinstance(v, (float, jnp.floating)) else f"{k}={v}"
+                for k, v in reduced_info.items()
+            )
             pbar.write(f"Step {step}: {info_str}")
             wandb.log(reduced_info, step=step)
             infos = []

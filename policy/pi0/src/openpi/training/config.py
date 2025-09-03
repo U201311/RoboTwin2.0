@@ -407,7 +407,7 @@ _CONFIGS = [
         batch_size=32,  # the total batch_size not pre_gpu batch_size
         weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
         num_train_steps=30000,
-        fsdp_devices=1,  # refer line 359
+        fsdp_devices=4,  # refer line 359
     ),
     # pi0_fast_base by lora
     TrainConfig(
@@ -446,10 +446,13 @@ _CONFIGS = [
     ),
     # pi0_base by full
     TrainConfig(
-        name="pi0_base_aloha_robotwin_full",
-        model=pi0.Pi0Config(),
+        # name="pi0_base_aloha_robotwin_full_place_shoe_domain_randomized",
+        name="pi0_multi_res_moe_aloha_robotwin_full",
+        model=pi0.Pi0Config(
+        ),
         data=LeRobotAlohaDataConfig(
-            repo_id="your_repo_id",  # your datasets repo_id
+            repo_id="demo_randomized_repo",  # your datasets repo_id
+            # repo_id="pi0_base_aloha_robotwin_full_place_shoe_domain_randomized",
             adapt_to_pi=False,
             repack_transforms=_transforms.Group(inputs=[
                 _transforms.RepackTransform({
@@ -468,11 +471,85 @@ _CONFIGS = [
                 prompt_from_task=True,  # Set to True for prompt by task_name
             ),
         ),
-        freeze_filter=pi0.Pi0Config().get_freeze_filter(),
-        batch_size=32,  # the total batch_size not pre_gpu batch_size
-        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
-        num_train_steps=30000,
-        fsdp_devices=4,  # refer line 359
+        # freeze_filter=pi0.Pi0Config().get_freeze_filter(),
+        batch_size=32,  
+        # weight_loader=weight_loaders.CheckpointWeightLoader("/mnt/pfs/scalelab2/VLA-MoE/Eval-RoboTwin/RoboTwin/policy/pi0/checkpoints/pi0_base_aloha_robotwin_full/multi-optimizer-w-film-w-moe-loss-12-4/30000/params"),
+        weight_loader=weight_loaders.MoEWeightLoader(
+            params_path="gs://openpi-assets/checkpoints/pi0_base/params",
+            num_experts=8,  # 与model中的num_experts保持一致
+            top_k=2,        # 与model中的top_k保持一致
+            noise_std=0.001,  # 设置为0.00与lora_democratic.py中的设置保持一致
+            gating_init_std=0.006,  # gating网络初始化标准差
+        ),
+        num_train_steps=80000,
+        wandb_enabled=True,
+        fsdp_devices=2,  
+        num_workers=10,
+        log_interval=100,
+        optimizer=_optimizer.MultiGroupAdamW(
+            lr_base=2.5e-5,     # Base model components 
+            lr_moe=7.5e-5,      # MoE components
+            lr_router=2e-4,   # Router components
+            wd_base=1e-2,      # Base weight decay
+            wd_moe=1e-2,       # MoE weight decay
+            wd_router=1e-2,   # Router weight decay
+
+            # Cosine decay schedule parameters for each group
+            # Warmup steps
+            warmup_steps_base=3000,
+            warmup_steps_moe=1000,
+            warmup_steps_router=1000,
+            # Decay steps
+            decay_steps_base=60_000,
+            decay_steps_moe=60_000,
+            decay_steps_router=60_000,
+            # Final learning rates
+            # decay_lr_base=2.5e-6,
+            # decay_lr_resnet=2.5e-5,
+            # decay_lr_film=2.5e-5,
+            # decay_lr_addfix=2.5e-5,
+            # decay_lr_moe=2.5e-5,
+            # decay_lr_router=5e-5,
+            decay_lr_base=1e-6,
+            decay_lr_moe=1.5e-6,
+            decay_lr_router=2e-5,
+        ),
+        # optimizer=_optimizer.MultiGroupAdamW(
+        #     lr_base=2.5e-6,     # Base model components
+        #     lr_film=2.5e-5,     # Film components
+        #     lr_resnet=2.5e-5,     # ResNet encoders (lower LR for stability)
+        #     lr_addfix=2.5e-5,   # Addfix components  
+        #     lr_moe=2.5e-5,      # MoE components
+        #     lr_router=5e-5,   # Router components
+        #     wd_base=1e-10,      # Base weight decay
+        #     wd_film=1e-5,      # Film weight decay
+        #     wd_resnet=1e-5,     # Higher weight decay for ResNet
+        #     wd_addfix=1e-5,    # Addfix weight decay
+        #     wd_moe=1e-5,       # MoE weight decay
+        #     wd_router=1e-4,   # Router weight decay
+        #     # Cosine decay schedule parameters for each group
+        #     # Warmup steps
+        #     warmup_steps_base=1000,
+        #     warmup_steps_resnet=1000,
+        #     warmup_steps_film=1000,
+        #     warmup_steps_addfix=1000,
+        #     warmup_steps_moe=1000,
+        #     warmup_steps_router=1000,
+        #     # Decay steps
+        #     decay_steps_base=30_000,
+        #     decay_steps_resnet=30_000,
+        #     decay_steps_film=30_000,
+        #     decay_steps_addfix=30_000,
+        #     decay_steps_moe=30_000,
+        #     decay_steps_router=30_000,
+        #     # Final learning rates
+        #     decay_lr_base=1e-6,
+        #     decay_lr_resnet=1e-5,
+        #     decay_lr_film=1e-5,
+        #     decay_lr_addfix=1e-5,
+        #     decay_lr_moe=1e-5,
+        #     decay_lr_router=2e-5,
+        # ),
     ),
     # pi0_fast_base by full
     TrainConfig(
