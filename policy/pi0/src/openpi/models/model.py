@@ -153,6 +153,7 @@ def preprocess_observation(
     out_images = {}
     for key in image_keys:
         image = observation.images[key]
+        
         if image.shape[1:3] != image_resolution:
             logger.info(f"Resizing image {key} from {image.shape[1:3]} to {image_resolution}")
             image = image_tools.resize_with_pad(image, *image_resolution)
@@ -199,6 +200,71 @@ def preprocess_observation(
         token_loss_mask=observation.token_loss_mask,
     )
 
+def preprocess_observation_without_resize(
+    rng: at.KeyArrayLike | None,
+    observation: Observation,
+    *,
+    train: bool = False,
+    image_keys: Sequence[str] = IMAGE_KEYS,
+    image_resolution: tuple[int, int] = IMAGE_RESOLUTION,
+) -> Observation:
+    """Preprocess the observations by performing image augmentations (if train=True), resizing (if necessary), and
+    filling in a default image mask (if necessary).
+    """
+
+    if not set(image_keys).issubset(observation.images):
+        raise ValueError(f"images dict missing keys: expected {image_keys}, got {list(observation.images)}")
+
+    batch_shape = observation.state.shape[:-1]
+
+    out_images = {}
+    for key in image_keys:
+        image = observation.images[key]
+        # if image.shape[1:3] != image_resolution:
+        #     logger.info(f"Resizing image {key} from {image.shape[1:3]} to {image_resolution}")
+        #     image = image_tools.resize_with_pad(image, *image_resolution)
+
+        if train:
+            # Convert from [-1, 1] to [0, 1] for augmax.
+            image = image / 2.0 + 0.5
+
+            transforms = []
+            if "wrist" not in key:
+                height, width = image.shape[1:3]
+                transforms += [
+                    augmax.RandomCrop(int(width * 0.95), int(height * 0.95)),
+                    augmax.Resize(width, height),
+                    augmax.Rotate((-5, 5)),
+                ]
+            transforms += [
+                augmax.ColorJitter(brightness=0.3, contrast=0.4, saturation=0.5),
+            ]
+            sub_rngs = jax.random.split(rng, image.shape[0])
+            image = jax.vmap(augmax.Chain(*transforms))(sub_rngs, image)
+
+            # Back to [-1, 1].
+            image = image * 2.0 - 1.0
+
+        out_images[key] = image
+
+    # obtain mask
+    out_masks = {}
+    for key in out_images:
+        if key not in observation.image_masks:
+            # do not mask by default
+            out_masks[key] = jnp.ones(batch_shape, dtype=jnp.bool)
+        else:
+            out_masks[key] = jnp.asarray(observation.image_masks[key])
+
+    return Observation(
+        images=out_images,
+        image_masks=out_masks,
+        state=observation.state,
+        tokenized_prompt=observation.tokenized_prompt,
+        tokenized_prompt_mask=observation.tokenized_prompt_mask,
+        token_ar_mask=observation.token_ar_mask,
+        token_loss_mask=observation.token_loss_mask,
+    )
 
 @dataclasses.dataclass(frozen=True)
 class BaseModelConfig(abc.ABC):
@@ -271,50 +337,113 @@ class BaseModel(nnx.Module, abc.ABC):
         ...
 
 
+# def restore_params(
+#     params_path: pathlib.Path | str,
+#     *,
+#     restore_type: type[np.ndarray] | type[jax.Array] = jax.Array,
+#     dtype: jnp.dtype | None = None,
+#     sharding: jax.sharding.Sharding | None = None,
+# ) -> at.Params:
+#     """Restores unstructured params PyTree from a checkpoint.
+
+#     This works with checkpoints saved with `save_state` during openpi training (see `training/checkpoints.py`) as
+#     well as pre-trained checkpoints released for openpi.
+
+#     Args:
+#         params_path: The local path to the checkpoint directory.
+#         restore_type: The type to restore the params as. Can be set to `np.ndarray` to load the params as a numpy array.
+#         dtype: The dtype to restore all params as. If not provided, will use the original dtype from the checkpoint.
+#         sharding: The sharding to use for the params. If not provided, the params will be replicated across all devices.
+
+#     Returns:
+#         The restored params.
+#     """
+#     params_path = pathlib.Path(params_path).resolve()
+#     if not params_path.exists():
+#         raise FileNotFoundError(f"Model params not found at: {params_path}")
+
+#     if restore_type is jax.Array and sharding is None:
+#         mesh = jax.sharding.Mesh(jax.devices(), ("x", ))
+#         sharding = jax.sharding.NamedSharding(mesh, jax.sharding.PartitionSpec())
+
+#     with ocp.PyTreeCheckpointer() as ckptr:
+#         metadata = ckptr.metadata(params_path)
+#         item = {"params": metadata["params"]}
+
+#         params = ckptr.restore(
+#             params_path,
+#             ocp.args.PyTreeRestore(
+#                 item=item,
+#                 restore_args=jax.tree.map(
+#                     lambda _: ocp.ArrayRestoreArgs(sharding=sharding, restore_type=restore_type, dtype=dtype), item),
+#             ),
+#         )["params"]
+
+#     # If the params were saved with `save_state` during openpi training, every key path will end with "value", which is
+#     # added by `nnx.State`. We remove the "value" suffix here and always return what NNX calls a "pure dict".
+#     flat_params = traverse_util.flatten_dict(params)
+#     if all(kp[-1] == "value" for kp in flat_params):
+#         flat_params = {kp[:-1]: v for kp, v in flat_params.items()}
+#     return traverse_util.unflatten_dict(flat_params)
+def make_lastdim_partition_spec(ndim: int):
+    if ndim == 0:
+        # scalar，不切
+        return jax.sharding.PartitionSpec()
+    parts = [None] * (ndim - 1) + ["mp"]
+    return jax.sharding.PartitionSpec(*parts)
 def restore_params(
     params_path: pathlib.Path | str,
     *,
     restore_type: type[np.ndarray] | type[jax.Array] = jax.Array,
     dtype: jnp.dtype | None = None,
     sharding: jax.sharding.Sharding | None = None,
+    shard: bool = True,
 ) -> at.Params:
-    """Restores unstructured params PyTree from a checkpoint.
-
-    This works with checkpoints saved with `save_state` during openpi training (see `training/checkpoints.py`) as
-    well as pre-trained checkpoints released for openpi.
-
-    Args:
-        params_path: The local path to the checkpoint directory.
-        restore_type: The type to restore the params as. Can be set to `np.ndarray` to load the params as a numpy array.
-        dtype: The dtype to restore all params as. If not provided, will use the original dtype from the checkpoint.
-        sharding: The sharding to use for the params. If not provided, the params will be replicated across all devices.
-
-    Returns:
-        The restored params.
-    """
     params_path = pathlib.Path(params_path).resolve()
     if not params_path.exists():
         raise FileNotFoundError(f"Model params not found at: {params_path}")
 
+    mesh = None
     if restore_type is jax.Array and sharding is None:
-        mesh = jax.sharding.Mesh(jax.devices(), ("x", ))
-        sharding = jax.sharding.NamedSharding(mesh, jax.sharding.PartitionSpec())
+        mesh = jax.sharding.Mesh(jax.devices(), ("mp",))
 
     with ocp.PyTreeCheckpointer() as ckptr:
         metadata = ckptr.metadata(params_path)
         item = {"params": metadata["params"]}
 
-        params = ckptr.restore(
-            params_path,
-            ocp.args.PyTreeRestore(
-                item=item,
-                restore_args=jax.tree.map(
-                    lambda _: ocp.ArrayRestoreArgs(sharding=sharding, restore_type=restore_type, dtype=dtype), item),
-            ),
-        )["params"]
+        from orbax.checkpoint._src.metadata import value as orbax_value
 
-    # If the params were saved with `save_state` during openpi training, every key path will end with "value", which is
-    # added by `nnx.State`. We remove the "value" suffix here and always return what NNX calls a "pure dict".
+        def get_restore_args(x):
+            if restore_type is jax.Array and shard and mesh is not None:
+                # 处理不同类型
+                if hasattr(x, "ndim"):         # jax.Array / np.ndarray
+                    ndim = x.ndim
+                elif isinstance(x, tuple):     # 普通 tuple shape
+                    ndim = len(x)
+                elif isinstance(x, orbax_value.ArrayMetadata):  # Orbax metadata
+                    ndim = len(x.shape)
+                else:
+                    raise TypeError(f"Unexpected type for param: {type(x)}")
+
+                pspec = make_lastdim_partition_spec(ndim)
+                shard_spec = jax.sharding.NamedSharding(mesh, pspec)
+            else:
+                shard_spec = sharding or jax.sharding.NamedSharding(
+                    mesh, jax.sharding.PartitionSpec()
+                )
+
+            return ocp.ArrayRestoreArgs(
+                sharding=shard_spec,
+                restore_type=restore_type,
+                dtype=dtype,
+            )
+    params = ckptr.restore(
+        params_path,
+        ocp.args.PyTreeRestore(
+            item=item,
+            restore_args=jax.tree.map(get_restore_args, item),
+        ),
+    )["params"]
     flat_params = traverse_util.flatten_dict(params)
     if all(kp[-1] == "value" for kp in flat_params):
         flat_params = {kp[:-1]: v for kp, v in flat_params.items()}

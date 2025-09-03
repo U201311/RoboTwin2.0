@@ -4,6 +4,7 @@ __pycache__/
 result/
 envs/curobo
 *.zip
+*.txt
 viewer_show.*
 eval_video/
 eval_results/
