@@ -6,6 +6,7 @@ envs/curobo
 *.zip
 viewer_show.*
 eval_video/
+eval_results/
 task_config/
 
 # eval result
