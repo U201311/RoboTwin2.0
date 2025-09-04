@@ -1,4 +1,4 @@
-FROM dp3_policy:v2
+FROM moe_openpi_eval:v1 
 COPY . /workspace/robotwin_generation
 
 RUN find /workspace/robotwin_generation -name "*.sh" -exec chmod +x {} \;

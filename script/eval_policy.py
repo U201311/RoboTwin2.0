@@ -62,7 +62,7 @@ def get_embodiment_config(robot_file):
 
 
 def main(usr_args):
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    current_time = datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
     task_name = usr_args["task_name"]
     task_config = usr_args["task_config"]
     ckpt_setting = usr_args["ckpt_setting"]
@@ -121,7 +121,7 @@ def main(usr_args):
     else:
         embodiment_name = str(embodiment_type[0]) + "+" + str(embodiment_type[1])
 
-    save_dir = Path(f"eval_results/{task_name}/{policy_name}/{task_config}/{ckpt_setting}/{current_time}")
+    save_dir = Path(f"/workspace/embolab/eval_results/{task_name}/{policy_name}/{task_config}/{ckpt_setting}/{current_time}")
     save_dir.mkdir(parents=True, exist_ok=True)
 
     if args["eval_video_log"]:
@@ -177,8 +177,8 @@ def main(usr_args):
 
     file_path = os.path.join(save_dir, f"_result.txt")
     with open(file_path, "w") as file:
-        file.write(f"Timestamp: {current_time}\n\n")
-        file.write(f"Instruction Type: {instruction_type}\n\n")
+        # file.write(f"Timestamp: {current_time}\n\n")
+        # file.write(f"Instruction Type: {instruction_type}\n\n")
         # file.write(str(task_reward) + '\n')
         file.write("\n".join(map(str, np.array(suc_nums) / test_num)))
 

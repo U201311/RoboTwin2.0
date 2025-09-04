@@ -7,6 +7,7 @@ train_config_name=${3}
 model_name=${4}
 seed=${5}
 gpu_id=${6}
+checkpoint_id=${7}
 
 export CUDA_VISIBLE_DEVICES=${gpu_id}
 echo -e "\033[33mgpu id (to use): ${gpu_id}\033[0m"
@@ -23,4 +24,5 @@ python script/eval_policy.py --config policy/$policy_name/deploy_policy.yml \
     --model_name ${model_name} \
     --ckpt_setting ${model_name} \
     --seed ${seed} \
-    --policy_name ${policy_name} 
+    --policy_name ${policy_name} \
+    --checkpoint_id ${checkpoint_id}
