@@ -22,7 +22,7 @@ task:
     task_name: robot
   dataset:
     _target_: diffusion_policy_3d.dataset.robot_dataset.RobotDataset
-    zarr_path: /workspace/embolab/data_dp/${task_name}-${setting}-${expert_data_num}.zarr
+    zarr_path: /workspace/embolab/data_dp/dpdata.zarr
     horizon: ${horizon}
     pad_before: ${eval:'${n_obs_steps}-1'}
     pad_after: ${eval:'${n_action_steps}-1'}
