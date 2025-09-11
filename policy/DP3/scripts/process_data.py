@@ -60,8 +60,7 @@ def main():
 
     total_count = 0
 
-    #save_dir = f"/workspace/embolab/data_dp/{task_name}-{task_config}-{num}.zarr"
-    save_dir = "/workspace/embolab/data_dp/dpdata.zarr"
+    save_dir = f"/workspace/embolab/data_dp/{task_name}-{task_config}-{num}.zarr"
 
     if os.path.exists(save_dir):
         shutil.rmtree(save_dir)
