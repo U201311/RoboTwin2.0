@@ -287,12 +287,12 @@ class TrainDP3Workspace:
             if ((self.epoch + 1) % cfg.training.checkpoint_every) == 0 and cfg.checkpoint.save_ckpt:
 
                 if not cfg.policy.use_pc_color:
-                    checkpoint_dir = os.path.join(self.checkpoint_path, "checkpoints", f"{self.cfg.task.name}_{cfg.training.seed}")
+                    checkpoint_dir = os.path.join(self.checkpoint_path, "checkpoints", "multi_tasks")
                     if not os.path.exists(checkpoint_dir):
                         os.makedirs(checkpoint_dir)
                     save_path = os.path.join(checkpoint_dir, f"{self.epoch + 1}.ckpt")
                 else:
-                    checkpoint_dir = os.path.join(self.checkpoint_path, "checkpoints", f"{self.cfg.task.name}_w_rgb_{cfg.training.seed}")
+                    checkpoint_dir = os.path.join(self.checkpoint_path, "checkpoints", "multi_tasks_w_rgb")
                     if not os.path.exists(checkpoint_dir):
                         os.makedirs(checkpoint_dir)
                     save_path = os.path.join(checkpoint_dir, f"{self.epoch + 1}.ckpt")

@@ -116,11 +116,11 @@ training:
   resume: true
   lr_scheduler: cosine
   lr_warmup_steps: 500
-  num_epochs: 1000
+  num_epochs: 100
   gradient_accumulate_every: 1
   use_ema: true
   rollout_every: 200
-  checkpoint_every: 1000
+  checkpoint_every: 100
   val_every: 50
   sample_every: 20
   max_train_steps: null

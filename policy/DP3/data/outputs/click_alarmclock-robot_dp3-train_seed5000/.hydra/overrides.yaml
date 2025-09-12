@@ -1,8 +1,8 @@
 - task_name=click_alarmclock
 - training.debug=False
 - training.seed=5000
-- training.num_epochs=1000
-- training.checkpoint_every=1000
+- training.num_epochs=100
+- training.checkpoint_every=100
 - training.device=cuda:0
 - exp_name=click_alarmclock-robot_dp3-train
 - logging.mode=online
