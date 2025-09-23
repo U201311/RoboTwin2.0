@@ -229,7 +229,16 @@ def run(TASK_ENV, args):
             with open(info_file_path, "r", encoding="utf-8") as file:
                 info_db = json.load(file)
 
-            info = TASK_ENV.play_once()
+            try:
+                info = TASK_ENV.play_once()
+            except ValueError as e:
+                if "target_pose cannot be None" in str(e):
+                    print(f"[Warning] play_once failed due to None target_pose: {e}. 跳过本次episode {episode_idx}")
+                    TASK_ENV.close_env(clear_cache=((episode_idx + 1) % clear_cache_freq == 0))
+                    continue
+                else:
+                    raise
+
             info_db[f"episode_{episode_idx}"] = info
 
             with open(info_file_path, "w", encoding="utf-8") as file:

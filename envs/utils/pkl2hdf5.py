@@ -60,17 +60,46 @@ def create_hdf5_from_dict(hdf5_group, data_dict):
             subgroup = hdf5_group.create_group(key)
             create_hdf5_from_dict(subgroup, value)
         elif isinstance(value, list):
-            value = np.array(value)
-            if "rgb" in key:
-                encode_data, max_len = images_encoding(value)
-                hdf5_group.create_dataset(key, data=encode_data, dtype=f"S{max_len}")
-            else:
-                hdf5_group.create_dataset(key, data=value)
+            try:
+                value = np.array(value)
+                if "rgb" in key:
+                    encode_data, max_len = images_encoding(value)
+                    hdf5_group.create_dataset(key, data=encode_data, dtype=f"S{max_len}")
+                else:
+                    hdf5_group.create_dataset(key, data=value)
+            except ValueError:
+                # 处理形状不一致的数据 - 截断至相同长度
+                print(f"Warning: Truncating non-uniform data for key '{key}'")
+                min_shape = None
+                # 找出最小的形状以便截断
+                for item in value:
+                    if isinstance(item, np.ndarray):
+                        if min_shape is None:
+                            min_shape = item.shape
+                        else:
+                            min_shape = tuple(min(s1, s2) for s1, s2 in zip(min_shape, item.shape))
+                
+                # 截断每个数组至最小形状
+                if min_shape is not None:
+                    truncated_value = []
+                    for item in value:
+                        if isinstance(item, np.ndarray):
+                            slices = tuple(slice(0, s) for s in min_shape)
+                            truncated_value.append(item[slices])
+                        else:
+                            truncated_value.append(item)
+                    
+                    value = np.array(truncated_value)
+                    hdf5_group.create_dataset(key, data=value)
+                else:
+                    # 如果找不到共同形状，则存储为对象
+                    dt = h5py.special_dtype(vlen=np.dtype('float64'))
+                    hdf5_group.create_dataset(key, data=np.array([str(v) for v in value]), dtype=dt)
         else:
-            return
+            # 处理其他类型的数据
             try:
                 hdf5_group.create_dataset(key, data=str(value))
-                print("Not np array")
+                print(f"Stored non-array data for key '{key}'")
             except Exception as e:
                 print(f"Error storing value for key '{key}': {e}")
 

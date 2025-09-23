@@ -16,28 +16,40 @@ from sapien.sensor import StereoDepthSensor, StereoDepthSensorConfig
 
 try:
     import pytorch3d.ops as torch3d_ops
-
+    
     def fps(points, num_points=1024, use_cuda=True):
         K = [num_points]
-        if use_cuda:
-            points = torch.from_numpy(points).cuda()
+        # 检查CUDA是否真正可用
+        use_cuda = use_cuda and torch.cuda.is_available()
+        try:
+            points = torch.from_numpy(points.copy())  # 使用copy避免内存问题
+            if use_cuda:
+                points = points.cuda()
             sampled_points, indices = torch3d_ops.sample_farthest_points(points=points.unsqueeze(0), K=K)
             sampled_points = sampled_points.squeeze(0)
-            sampled_points = sampled_points.cpu().numpy()
-        else:
-            points = torch.from_numpy(points)
-            sampled_points, indices = torch3d_ops.sample_farthest_points(points=points.unsqueeze(0), K=K)
-            sampled_points = sampled_points.squeeze(0)
+            if use_cuda:
+                sampled_points = sampled_points.cpu()
             sampled_points = sampled_points.numpy()
+            return sampled_points, indices
+        except RuntimeError as e:
+            print(f"CUDA error in fps: {e}. Falling back to CPU.")
+            # 如果CUDA操作失败，回退到CPU
+            if use_cuda:
+                return fps(points.cpu().numpy() if isinstance(points, torch.Tensor) else points, num_points, use_cuda=False)
+            else:
+                # 如果已经在CPU上出错，可能是其他问题
+                raise
 
-        return sampled_points, indices
-
-except:
-    print("missing pytorch3d")
+except ImportError:
+    print("警告: pytorch3d 模块缺失")
 
     def fps(points, num_points=1024, use_cuda=True):
-        print("fps error: missing pytorch3d")
-        exit()
+        print("fps 错误: 缺少 pytorch3d 模块")
+        # 返回简单的随机采样作为备选方案
+        if len(points) <= num_points:
+            return points, np.arange(len(points))
+        indices = np.random.choice(len(points), num_points, replace=False)
+        return points[indices], indices
 
 
 class Camera:
@@ -565,8 +577,23 @@ class Camera:
 
         pcd_array, index = conbine_pcd[:, :3], np.array(range(len(conbine_pcd)))
 
-        if self.pcd_down_sample_num > 0:
-            pcd_array, index = fps(conbine_pcd[:, :3], self.pcd_down_sample_num)
-            index = index.detach().cpu().numpy()[0]
-
+        if self.pcd_down_sample_num > 0 and len(conbine_pcd) > self.pcd_down_sample_num:
+            try:
+                # 检查是否有足够的点进行采样
+                pcd_array, indices = fps(conbine_pcd[:, :3], self.pcd_down_sample_num, use_cuda=torch.cuda.is_available())
+                # 安全处理索引
+                if hasattr(indices, 'detach'):
+                    index = indices.detach().cpu().numpy()
+                    # 检查是否是嵌套列表/数组
+                    if isinstance(index, np.ndarray) and index.ndim > 1:
+                        index = index[0]
+                else:
+                    index = indices
+                return conbine_pcd[index]
+            except Exception as e:
+                print(f"警告: FPS采样失败，回退到随机采样: {e}")
+                # 回退到随机采样
+                index = np.random.choice(len(conbine_pcd), self.pcd_down_sample_num, replace=False)
+                return conbine_pcd[index]
+        
         return conbine_pcd[index]

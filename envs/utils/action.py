@@ -73,7 +73,11 @@ class Action:
             assert (self.target_gripper_pos is not None), "target_gripper_pos cannot be None for gripper action."
         else:
             self.action = "move"
-            assert (target_pose is not None), "target_pose cannot be None for move action."
+            if target_pose is None:
+                import traceback
+                print("[Action] target_pose is None for move action!\n调用栈如下：")
+                traceback.print_stack()
+                raise ValueError("target_pose cannot be None for move action. 请检查上游代码是否正确传入target_pose。")
             self.target_pose = _tolist(target_pose)
         self.args = args
 
