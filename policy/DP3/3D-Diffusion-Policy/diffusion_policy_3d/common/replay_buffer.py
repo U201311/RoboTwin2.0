@@ -93,6 +93,7 @@ class ReplayBuffer:
         assert "meta" in root
         assert "episode_ends" in root["meta"]
         for key, value in root["data"].items():
+            print("value",{value.shape[0]}, "root meta", {root["meta"]["episode_ends"][-1]})
             assert value.shape[0] == root["meta"]["episode_ends"][-1]
         self.root = root
 

@@ -4,8 +4,8 @@ docker run -itd   --rm --privileged=true  --gpus all \
 	-e NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics,display \
 	-e NVIDIA_VISIBLE_DEVICES=all \
 	--user $(id -u):$(id -g) \
-	-p 22502:5901 \
-	-p 22273:22 \
+	-p 22512:5901 \
+	-p 22293:22 \
 	--user 0 \
 	--shm-size 128g \
 	-v /data1/liy/projects/embodyai/Robotwin_Generation/embolab:/workspace/embolab \

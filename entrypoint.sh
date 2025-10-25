@@ -36,8 +36,9 @@ cd "$(dirname "$0")/policy/DP3"
 # 将所有输出重定向到日志文件
 exec > >(tee -a "${LOG_FILE}") 2>&1
 source /opt/conda/bin/activate RoboTwin
-
+rm -rf /workspace/embolab/data_dp/*
 TASK_COUNT=$(python3 -c "import sys, json; data = json.load(open('/workspace/embolab/params/build_task.json')); print(len(data['train']['task_list']))")
+###添加脚本
 
 for ((i=0; i<$TASK_COUNT; i++)); do
     echo "处理任务 $((i+1))/$TASK_COUNT"

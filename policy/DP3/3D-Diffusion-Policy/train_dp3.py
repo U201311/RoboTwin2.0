@@ -117,6 +117,7 @@ class TrainDP3Workspace:
 
         # configure dataset
         dataset: BaseDataset
+        print("cfg.task.datase", {cfg.task.dataset})
         dataset = hydra.utils.instantiate(cfg.task.dataset)
 
         assert isinstance(dataset, BaseDataset), print(f"dataset must be BaseDataset, got {type(dataset)}")
