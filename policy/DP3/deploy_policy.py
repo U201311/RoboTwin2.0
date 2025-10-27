@@ -107,9 +107,9 @@ def get_model(usr_args):
         # 尝试加载检查点
     if 'checkpoint_path' in usr_args and usr_args['checkpoint_path']:
         # 构建检查点文件名
-        checkpoint_dir = f"{usr_args['task_name']}-{usr_args['task_config']}-{usr_args['expert_data_num']}_{usr_args['seed']}"
+        #checkpoint_dir = f"{usr_args['task_name']}-{usr_args['task_config']}-{usr_args['expert_data_num']}_{usr_args['seed']}"
         checkpoint_name = f"{usr_args.get('checkpoint_num', 'latest')}.ckpt"
-        checkpoint_path = os.path.join(usr_args['checkpoint_path'], checkpoint_dir,checkpoint_name)
+        checkpoint_path = os.path.join(usr_args['checkpoint_path'], "multi_tasks",checkpoint_name)
         #checkpoint_path = "/workspace/embolab/checkpoints/click_alarmclock-demo_randomized-100_5000/1000.ckpt"
         usr_args['checkpoint_path'] = checkpoint_path
         if os.path.exists(checkpoint_path):
