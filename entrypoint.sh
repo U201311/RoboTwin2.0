@@ -12,12 +12,12 @@ EPOCHS=$(get_json_value "['train']['epochs']")
 CHECKPOINT_PATH=$(get_json_value "['evaluation']['checkpoint_path']")
 LOG_DIR=$(get_json_value "['evaluation']['log_path']")
 CHECKPOINT_SETTING=$(get_json_value "['evaluation']['task_config']")
-
+TASK_CONFIG=$(get_json_value "['evaluation']['task_config']")
 
 mkdir -p "$LOG_DIR"
 
 DATE_STR=$(date +"%Y-%m-%d_%H-%M-%S")
-LOG_FILE="${LOG_DIR}/${TASK_NAME}_${CAMERA_TYPE}_${DATE_STR}.log"
+LOG_FILE="${LOG_DIR}/${DATE_STR}.log"
 
 
 #补充echo
@@ -41,4 +41,4 @@ source /opt/conda/bin/activate RoboTwin
 
 echo "Starting eval for task: ${TASK_NAME} with camera type: ${CAMERA_TYPE} "
 bash eval.sh ${TASK_NAME}  ${TASK_CONFIG} ${CHECKPOINT_SETTING}  ${SEED} ${GPU_ID}  ${EPOCHS} 
-#bash eval.sh click_alarmclock demo_randomized demo_clean 10 5000 0 1000#
+#bash eval.sh click_alarmclock demo_randomized demo_clean  5000 0 10#
