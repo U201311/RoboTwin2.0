@@ -5,10 +5,9 @@ docker run -itd  --rm --privileged=true  --gpus all \
 	-e NVIDIA_VISIBLE_DEVICES=all \
 	--user $(id -u):$(id -g) \
 	-p 25973:5901 \
-	-p 22273:22 \
+	-p 22283:22 \
 	--user 0 \
 	--shm-size 256g \
 	-v /data1/liy/projects/embodyai/Robotwin_Generation/embolab:/workspace/embolab \
-	-v /data1/liy/projects/RoboTwin2.0:/workspace/robotwin_generation \
 	--name $NAME \
 	$DOCKER_IMAGE /bin/bash
